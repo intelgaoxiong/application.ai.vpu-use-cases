@@ -13,6 +13,11 @@ endif()
 #  message(FATAL_ERROR "Please build HVA framework and copy to 'gsthvasample/3rdparty/hvaframework/', please refer 'gsthvasample/3rdparty/hvaframework/README.md' to build hav framework.")
 #endif()
 
+find_package(OpenCV REQUIRED COMPONENTS core highgui videoio imgproc imgcodecs gapi)
+find_package(OpenVINO REQUIRED COMPONENTS Runtime)
+
+add_subdirectory(thirdparty/gflags)
+
 include_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/hvaframework/include/hva"
   "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/hvaframework/include/hva/inc/api"
