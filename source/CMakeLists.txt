@@ -25,6 +25,8 @@ macro(add_demo)
         source_group("include" FILES ${OMZ_DEMO_HEADERS})
     endif()
 
+    link_directories("${PROJECT_SOURCE_DIR}/thirdparty/hvaframework/lib")
+
     # Create executable file from sources
     add_executable(${OMZ_DEMO_NAME} ${OMZ_DEMO_SOURCES} ${OMZ_DEMO_HEADERS})
 
