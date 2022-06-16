@@ -8,6 +8,7 @@ int main(int argc, char* argv[]){
     HVA_INFO("App Start:");
 
     hva::hvaPipeline_t pl;
+    pl.registerEvent(hvaEvent_EOF);
 
     hva::hvaBatchingConfig_t batchingConfig;
     batchingConfig.batchingPolicy = hva::hvaBatchingConfig_t::BatchingWithStream;
@@ -33,10 +34,10 @@ int main(int argc, char* argv[]){
     std::cout<<"\nPipeline Start: "<<std::endl;
     pl.start();
 
-    // Waiting for pipeline stop
-    do {
-        Sleep(1);
-    } while(true);
+    //block here until EOF event is received
+    pl.waitForEvent(hvaEvent_EOF);
+
+    pl.stop();
 
     HVA_INFO("App terminate");
     return 0;

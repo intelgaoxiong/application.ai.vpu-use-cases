@@ -16,6 +16,8 @@
 
 using ms = std::chrono::milliseconds;
 
+#define hvaEvent_EOF 0x3ull
+
 class FrameReaderNode : public hva::hvaNode_t{
 public:
     struct Config{

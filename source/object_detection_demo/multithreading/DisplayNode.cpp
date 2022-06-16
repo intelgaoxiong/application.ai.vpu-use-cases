@@ -19,12 +19,15 @@ void DisplayNodeWorker::process(std::size_t batchIdx){
     if(vInput.size() != 0){
         HVA_DEBUG("DispalyNode received blob with frameid %u and streamid %u", vInput[0]->frameId, vInput[0]->streamId);
 
-        auto cvFrame = vInput[0]->get<cv::Mat, int>(0)->getPtr();
-        auto outputResolution = cvFrame->size();
-        HVA_DEBUG("DispalyNode[%u] outputResolution %d x %d", vInput[0]->streamId, outputResolution.width, outputResolution.height);
+        auto eof = vInput[0]->get<cv::Mat, int>(0)->getMeta();
+        if (!(*eof)) {
+            auto cvFrame = vInput[0]->get<cv::Mat, int>(0)->getPtr();
+            auto outputResolution = cvFrame->size();
+            HVA_DEBUG("DispalyNode[%u] outputResolution %d x %d", vInput[0]->streamId, outputResolution.width, outputResolution.height);
 
-        cv::imshow("Detection Results", *cvFrame);
-        cv::waitKey(1);
+            cv::imshow("Detection Results", *cvFrame);
+            cv::waitKey(1);
+        }
     }
 }
 
