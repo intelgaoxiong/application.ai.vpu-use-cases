@@ -22,6 +22,8 @@ class FrameReaderNode : public hva::hvaNode_t{
 public:
     struct Config{
         std::string input;
+        bool infiniteLoop;
+        read_type readType;  //read_type::efficient or read_type::safe
     };
 
     FrameReaderNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config);

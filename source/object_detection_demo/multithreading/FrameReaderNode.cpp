@@ -13,6 +13,8 @@ std::shared_ptr<hva::hvaNodeWorker_t> FrameReaderNode::createNodeWorker() const{
 FrameReaderNodeWorker::FrameReaderNodeWorker(hva::hvaNode_t* parentNode, int streamId, const FrameReaderNode::Config& config):hva::hvaNodeWorker_t(parentNode),
     m_streamId(streamId){
     m_input = config.input;
+    m_loop = config.infiniteLoop;
+    m_rt = config.readType;
     HVA_DEBUG("FrameReaderNodeWorker[%d] input %s\n", m_streamId, m_input.c_str());
 
 }
@@ -55,10 +57,6 @@ void FrameReaderNodeWorker::process(std::size_t batchIdx){
 }
 
 void FrameReaderNodeWorker::init(){
-        //Should be configurable
-        //m_input
-        m_loop = true;
-        m_rt = read_type::safe;
 }
 
 void FrameReaderNodeWorker::deinit(){
@@ -69,4 +67,7 @@ void FrameReaderNodeWorker::processByFirstRun(std::size_t batchIdx) {
 }
 
 void FrameReaderNodeWorker::processByLastRun(std::size_t batchIdx) {
+    auto readLat = m_cap->getMetrics().getTotal().latency;
+    slog::info << "\tDecoding:\t" << std::fixed << std::setprecision(1) <<
+        readLat << " ms" << slog::endl;
 }
