@@ -34,9 +34,14 @@ void FrameReaderNodeWorker::process(std::size_t batchIdx){
     FrameReaderNode  * m_FRNode = dynamic_cast<FrameReaderNode*>(hva::hvaNodeWorker_t::getParentPtr());
 
     if (curr_frame.empty()) {
-        //Should handle this case
-        HVA_WARNING("EOF!");
-        pipe_stop_event = true;
+        if (!m_loop) {
+            //Should handle this case
+            HVA_WARNING("EOF!");
+            pipe_stop_event = true;
+        } else {
+            m_cap = openImagesCapture(m_input, m_loop, m_rt);
+            return;
+        }
     }
     auto outputResolution = curr_frame.size();
 
