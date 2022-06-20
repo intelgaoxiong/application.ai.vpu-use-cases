@@ -1,4 +1,5 @@
 #include <FrameReaderNode.hpp>
+#include <OdInferNode.hpp>
 #include <DisplayNode.hpp>
 #include <Windows.h>
 
@@ -16,6 +17,7 @@ int main(int argc, char* argv[]){
     batchingConfig.streamNum = 1;
     batchingConfig.threadNumPerBatch = 1;
 
+    //Source node
     FrameReaderNode::Config FRConfig;
     FRConfig.input = "C:/work/sample-videos/car-detection.mp4";
     FRConfig.infiniteLoop = true;
@@ -23,12 +25,23 @@ int main(int argc, char* argv[]){
     auto& FRNode = pl.setSource(std::make_shared<FrameReaderNode>(0, 1, 1, FRConfig), "FRNode");
     FRNode.configBatch(batchingConfig);
 
+    //Detection node
+    ODInferNode::Config ODConfig;
+    ODConfig.modelFileName = "C:/work/yolo-v2-tiny/FP16-INT8/yolo-v2-tiny-ava-0001.xml";
+    ODConfig.architectureType = "yolo";
+    ODConfig.nstreams = "1";
+    ODConfig.nireq = 4;
+    auto& OdNode = pl.addNode(std::make_shared<ODInferNode>(1, 1, 1, ODConfig), "OdNode");
+    OdNode.configBatch(batchingConfig);
+
+    //Sink node
     DisplayNode::Config DispConfig;
     auto& DispNode = pl.addNode(std::make_shared<DisplayNode>(1, 0, 1, DispConfig), "DispNode");
     DispNode.configBatch(batchingConfig);
 
     // Link nodes
-    pl.linkNode("FRNode", 0, "DispNode", 0);
+    pl.linkNode("FRNode", 0, "OdNode", 0);
+    pl.linkNode("OdNode", 0, "DispNode", 0);
 
     // Start pipeline
     pl.prepare();
