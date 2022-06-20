@@ -62,5 +62,8 @@ private:
     read_type m_rt;  //read_type::efficient or read_type::safe
 
     std::unique_ptr<ImagesCapture> m_cap;
+
+    std::atomic_uint m_currDepth = 0;
+    unsigned int m_maxDepth =16;
 };
 #endif

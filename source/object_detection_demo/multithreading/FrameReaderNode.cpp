@@ -1,4 +1,5 @@
 #include <FrameReaderNode.hpp>
+#include <windows.h>
 
 FrameReaderNode::FrameReaderNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config):
         m_workerIdx(0), hva::hvaNode_t(inPortNum, outPortNum, totalThreadNum), m_cfg(config){
@@ -20,6 +21,12 @@ FrameReaderNodeWorker::FrameReaderNodeWorker(hva::hvaNode_t* parentNode, int str
 }
 
 void FrameReaderNodeWorker::process(std::size_t batchIdx){
+    while (1) {
+        if (m_currDepth >= m_maxDepth)
+            Sleep(5);
+        else
+            break;
+    }
     //--- Capturing frame
     cv::Mat curr_frame = m_cap->read();
 
@@ -42,17 +49,19 @@ void FrameReaderNodeWorker::process(std::size_t batchIdx){
         eof = new int(0);
 
     blob->emplace<cv::Mat, int>(new cv::Mat(curr_frame), outputResolution.width * outputResolution.height * 3, eof,
-            [pipe_stop_event, m_FRNode](cv::Mat * m_cvMat, int * m) {
+            [this, pipe_stop_event, m_FRNode](cv::Mat * m_cvMat, int * m) {
                 if(pipe_stop_event) {
                     m_FRNode->emitEvent(hvaEvent_EOF, nullptr);
                     HVA_WARNING("Emit hvaEvent_EOF!");
                 }
                 delete m_cvMat;
                 delete m;
+                this->m_currDepth --;
             });
     blob->frameId = m_frame_index;
     blob->streamId = m_streamId;
     m_frame_index ++;
+    m_currDepth ++;
     sendOutput(blob, 0, ms(0));
 }
 
