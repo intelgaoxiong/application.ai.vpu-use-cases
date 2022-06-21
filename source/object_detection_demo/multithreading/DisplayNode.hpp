@@ -124,6 +124,7 @@ private:
     cv::Mat curr_frame;
     std::shared_ptr<ColorPalette> m_palettePtr;
     std::shared_ptr<OutputTransform> m_outputTransform;
+    std::shared_ptr<PerformanceMetrics> m_metrics;
 
     cv::Mat renderDetectionData(DetectionResult& result, const ColorPalette& palette, OutputTransform& outputTransform);
 };

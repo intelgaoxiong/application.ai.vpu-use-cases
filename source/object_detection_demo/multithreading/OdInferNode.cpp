@@ -3,6 +3,8 @@
 #include <utils/args_helper.hpp>
 #include <utils/config_factory.h>
 
+//#define raw_output 1
+
 ODInferNode::ODInferNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config):
         hva::hvaNode_t(inPortNum, outPortNum, totalThreadNum), m_cfg(config){
 
@@ -84,10 +86,10 @@ void ODInferNodeWorker::process(std::size_t batchIdx){
         std::vector<std::shared_ptr<hva::hvaBlob_t>> vInput= hvaNodeWorker_t::getParentPtr()->getBatchedInput(batchIdx, std::vector<size_t> {0});
         if(vInput.size() != 0) {
             HVA_DEBUG("DetectionNode received blob with frameid %u and streamid %u", vInput[0]->frameId, vInput[0]->streamId);
-            auto cvFrame = vInput[0]->get<cv::Mat, int>(0)->getPtr();
-            auto startTime = std::chrono::steady_clock::now();
-            m_frameNum = m_pipeline->submitData(ImageInputData(*cvFrame),
-                                               std::make_shared<ImageMetaData>(*cvFrame, startTime));
+            auto cvFrame = vInput[0]->get<int, ImageMetaData>(0)->getMeta()->img;
+            auto startTime = vInput[0]->get<int, ImageMetaData>(0)->getMeta()->timeStamp;
+            m_frameNum = m_pipeline->submitData(ImageInputData(cvFrame),
+                                               std::make_shared<ImageMetaData>(cvFrame, startTime));
 
             std::unique_lock<std::mutex> lock(m_blobMutex);
             m_inferWaitingQueue.push(vInput[0]);
@@ -122,6 +124,7 @@ void ODInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
             auto nnresult = m_pipeline->getResult();
             if (nnresult) {
                 DetectionResult result = nnresult->asRef<DetectionResult>();
+#if raw_output
                 // Visualizing result data over source image
                 slog::debug << " -------------------- Frame # " << result.frameId << "--------------------" << slog::endl;
                 slog::debug << " Class ID  | Confidence | XMIN | YMIN | XMAX | YMAX " << slog::endl;
@@ -131,6 +134,7 @@ void ODInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
                                 << std::setw(4) << int(obj.x + obj.width) << " | " << std::setw(4) << int(obj.y + obj.height)
                                 << slog::endl;
                 }
+#endif
                 ptrInferMeta->detResult = result;
             } else {
                 HVA_WARNING("No NN results, should not happen\n");
@@ -144,7 +148,7 @@ void ODInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
                     }
                     delete meta;
                 });
-            blob->push(pendingBlob->get<cv::Mat, int>(0));
+            blob->push(pendingBlob->get<int, ImageMetaData>(0));
             blob->frameId = pendingBlob->frameId;
             blob->streamId = pendingBlob->streamId;
 

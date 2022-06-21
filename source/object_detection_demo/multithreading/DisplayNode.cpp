@@ -56,15 +56,21 @@ void DisplayNodeWorker::process(std::size_t batchIdx){
     if(vInput.size() != 0){
         HVA_DEBUG("DispalyNode received blob with frameid %u and streamid %u", vInput[0]->frameId, vInput[0]->streamId);
 
-        auto eof = vInput[0]->get<cv::Mat, int>(1)->getMeta();
+        auto eof = vInput[0]->get<int, ImageMetaData>(1)->getPtr();
         if (!(*eof)) {
-            auto cvFrame = vInput[0]->get<cv::Mat, int>(1)->getPtr();
-            auto outputResolution = cvFrame->size();
+            auto cvFrame = vInput[0]->get<int, ImageMetaData>(1)->getMeta()->img;
+            auto outputResolution = cvFrame.size();
             HVA_DEBUG("DispalyNode[%u] outputResolution %d x %d", vInput[0]->streamId, outputResolution.width, outputResolution.height);
+
+            auto timeStamp = vInput[0]->get<int, ImageMetaData>(1)->getMeta()->timeStamp;
 
             auto ptrInferMeta = vInput[0]->get<int, InferMeta>(0)->getMeta();
             cv::Mat outFrame = renderDetectionData(ptrInferMeta->detResult, *m_palettePtr.get(), *m_outputTransform.get());
-
+            m_metrics->update(timeStamp,
+                               outFrame,
+                               {10, 22},
+                               cv::FONT_HERSHEY_COMPLEX,
+                               0.65);
             cv::imshow("Detection Results", outFrame);
             cv::waitKey(1);
         }
@@ -80,6 +86,7 @@ void DisplayNodeWorker::deinit(){
 void DisplayNodeWorker::processByFirstRun(std::size_t batchIdx) {
     m_palettePtr.reset(new ColorPalette(100));
     m_outputTransform.reset(new OutputTransform());
+    m_metrics.reset(new PerformanceMetrics());
 }
 
 void DisplayNodeWorker::processByLastRun(std::size_t batchIdx) {

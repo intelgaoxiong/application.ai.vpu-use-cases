@@ -1,4 +1,6 @@
 #include <FrameReaderNode.hpp>
+#include <pipelines/metadata.h>
+
 #include <windows.h>
 
 FrameReaderNode::FrameReaderNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config):
@@ -28,6 +30,7 @@ void FrameReaderNodeWorker::process(std::size_t batchIdx){
             break;
     }
     //--- Capturing frame
+    auto startTime = std::chrono::steady_clock::now();
     cv::Mat curr_frame = m_cap->read();
 
     bool pipe_stop_event = false;
@@ -53,14 +56,14 @@ void FrameReaderNodeWorker::process(std::size_t batchIdx){
     else
         eof = new int(0);
 
-    blob->emplace<cv::Mat, int>(new cv::Mat(curr_frame), outputResolution.width * outputResolution.height * 3, eof,
-            [this, pipe_stop_event, m_FRNode](cv::Mat * m_cvMat, int * m) {
+    blob->emplace<int, ImageMetaData>(eof, 8u, new ImageMetaData{curr_frame, startTime},
+            [this, pipe_stop_event, m_FRNode](int * m, ImageMetaData * m_meta) {
                 if(pipe_stop_event) {
                     m_FRNode->emitEvent(hvaEvent_EOF, nullptr);
                     HVA_WARNING("Emit hvaEvent_EOF!");
                 }
-                delete m_cvMat;
                 delete m;
+                delete m_meta;
                 this->m_currDepth --;
             });
     blob->frameId = m_frame_index;
