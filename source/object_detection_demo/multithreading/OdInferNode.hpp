@@ -26,6 +26,9 @@
 #include <pipelines/async_pipeline.h>
 #include <pipelines/metadata.h>
 
+#include <common.hpp>
+
+
 using ms = std::chrono::milliseconds;
 
 class ODInferNode : public hva::hvaNode_t{
@@ -85,6 +88,10 @@ private:
 
     ov::Core m_core;
 
+    std::shared_ptr<std::thread> m_resultThread;
+    std::atomic_bool m_exec {true};
+    std::mutex m_blobMutex;
+    std::queue<std::shared_ptr<hva::hvaBlob_t>> m_inferWaitingQueue;
     int64_t m_frameNum = -1;
 };
 #endif

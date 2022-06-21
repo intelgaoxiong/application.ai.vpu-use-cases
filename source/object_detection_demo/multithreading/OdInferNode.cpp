@@ -84,31 +84,17 @@ void ODInferNodeWorker::process(std::size_t batchIdx){
         std::vector<std::shared_ptr<hva::hvaBlob_t>> vInput= hvaNodeWorker_t::getParentPtr()->getBatchedInput(batchIdx, std::vector<size_t> {0});
         if(vInput.size() != 0) {
             HVA_DEBUG("DetectionNode received blob with frameid %u and streamid %u", vInput[0]->frameId, vInput[0]->streamId);
-            printf("DetectionNode received blob with frameid %u and streamid %u\n", vInput[0]->frameId, vInput[0]->streamId);
             auto cvFrame = vInput[0]->get<cv::Mat, int>(0)->getPtr();
             auto startTime = std::chrono::steady_clock::now();
             m_frameNum = m_pipeline->submitData(ImageInputData(*cvFrame),
                                                std::make_shared<ImageMetaData>(*cvFrame, startTime));
-            //TODO: wait and process result in another thread
-            m_pipeline->waitForData();
-            auto nnresult = m_pipeline->getResult();
-            if (nnresult) {
-                DetectionResult result = nnresult->asRef<DetectionResult>();
-                slog::debug << " -------------------- Frame # " << result.frameId << "--------------------" << slog::endl;
-                slog::debug << " Class ID  | Confidence | XMIN | YMIN | XMAX | YMAX " << slog::endl;
-                for (auto& obj : result.objects) {
-                    slog::debug << " " << std::left << std::setw(9) << obj.label << " | " << std::setw(10) << obj.confidence
-                                << " | " << std::setw(4) << int(obj.x) << " | " << std::setw(4) << int(obj.y) << " | "
-                                << std::setw(4) << int(obj.x + obj.width) << " | " << std::setw(4) << int(obj.y + obj.height)
-                                << slog::endl;
-                }
-            }
-            sendOutput(vInput[0], 0, ms(0));
+
+            std::unique_lock<std::mutex> lock(m_blobMutex);
+            m_inferWaitingQueue.push(vInput[0]);
         }
     } else {
         HVA_DEBUG("DetectionNode has no idle infer request\n");
     }
-    
 }
 
 void ODInferNodeWorker::init(){
@@ -118,7 +104,58 @@ void ODInferNodeWorker::deinit(){
 }
 
 void ODInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
+    m_resultThread = std::make_shared<std::thread> ([&]() {
+        while (m_exec) {
+            //m_pipeline->waitForData();
+            m_pipeline->waitForResult();
+
+            std::shared_ptr<hva::hvaBlob_t> pendingBlob;
+            {
+                std::unique_lock<std::mutex> lock(m_blobMutex);
+                pendingBlob = m_inferWaitingQueue.front();
+                m_inferWaitingQueue.pop();
+            }
+
+            std::shared_ptr<hva::hvaBlob_t> blob(new hva::hvaBlob_t());
+            InferMeta *ptrInferMeta = new InferMeta;
+            //Post-process
+            auto nnresult = m_pipeline->getResult();
+            if (nnresult) {
+                DetectionResult result = nnresult->asRef<DetectionResult>();
+                // Visualizing result data over source image
+                slog::debug << " -------------------- Frame # " << result.frameId << "--------------------" << slog::endl;
+                slog::debug << " Class ID  | Confidence | XMIN | YMIN | XMAX | YMAX " << slog::endl;
+                for (auto& obj : result.objects) {
+                    slog::debug << " " << std::left << std::setw(9) << obj.label << " | " << std::setw(10) << obj.confidence
+                                << " | " << std::setw(4) << int(obj.x) << " | " << std::setw(4) << int(obj.y) << " | "
+                                << std::setw(4) << int(obj.x + obj.width) << " | " << std::setw(4) << int(obj.y + obj.height)
+                                << slog::endl;
+                }
+                ptrInferMeta->detResult = result;
+            } else {
+                HVA_WARNING("No NN results, should not happen\n");
+                return;
+            }
+
+            ptrInferMeta->frameId = pendingBlob->frameId;
+            blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
+                    if (payload!=nullptr) {
+                        delete payload;
+                    }
+                    delete meta;
+                });
+            blob->push(pendingBlob->get<cv::Mat, int>(0));
+            blob->frameId = pendingBlob->frameId;
+            blob->streamId = pendingBlob->streamId;
+
+            sendOutput(blob, 0, ms(0));
+        }
+    });
 }
 
 void ODInferNodeWorker::processByLastRun(std::size_t batchIdx) {
+    if (m_resultThread && m_resultThread->joinable()) {
+        m_exec = false;
+        m_resultThread->join();
+    }
 }

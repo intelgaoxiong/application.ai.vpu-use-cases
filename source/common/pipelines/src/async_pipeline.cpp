@@ -64,6 +64,24 @@ void AsyncPipeline::waitForData(bool shouldKeepOrder) {
     }
 }
 
+void AsyncPipeline::waitForResult(bool shouldKeepOrder) {
+    std::unique_lock<std::mutex> lock(mtx);
+
+    condVar.wait(
+        lock,
+        [&]()
+        {
+            return callbackException != nullptr ||
+                   (shouldKeepOrder ?
+                       completedInferenceResults.find(outputFrameId) != completedInferenceResults.end() :
+                       !completedInferenceResults.empty());
+        });
+
+    if (callbackException) {
+        std::rethrow_exception(callbackException);
+    }
+}
+
 int64_t AsyncPipeline::submitData(const InputData& inputData, const std::shared_ptr<MetaData>& metaData) {
     auto frameID = inputFrameId;
 

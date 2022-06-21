@@ -43,6 +43,11 @@ public:
     /// ready (so results can be extracted in the same order as they were submitted). Otherwise, function will return if any result is ready.
     void waitForData(bool shouldKeepOrder = true);
 
+    /// Waits until output data becomes available
+    /// @param shouldKeepOrder if true, function will treat results as ready only if next sequential result (frame) is
+    /// ready (so results can be extracted in the same order as they were submitted). Otherwise, function will return if any result is ready.
+    void waitForResult(bool shouldKeepOrder = true);
+
     /// @returns true if there's available infer requests in the pool
     /// and next frame can be submitted for processing, false otherwise.
     bool isReadyToProcess() { return requestsPool->isIdleRequestAvailable(); }
