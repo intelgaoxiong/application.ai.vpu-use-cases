@@ -1,5 +1,5 @@
 #include <FrameReaderNode.hpp>
-#include <OdInferNode.hpp>
+#include <MidasInferNode.hpp>
 #include <DisplayNode.hpp>
 #include <Windows.h>
 
@@ -19,20 +19,21 @@ int main(int argc, char* argv[]){
 
     //Source node
     FrameReaderNode::Config FRConfig;
-    FRConfig.input = "C:/work/sample-videos/car-detection.mp4";
+    //FRConfig.input = "C:/xiong/demo_dev/sample-videos/car-detection.mp4";
+    FRConfig.input = "C:/xiong/demo_dev/sample-videos/worker-zone-detection.mp4";
     FRConfig.infiniteLoop = true;
     FRConfig.readType = read_type::safe;
     auto& FRNode = pl.setSource(std::make_shared<FrameReaderNode>(0, 1, 1, FRConfig), "FRNode");
     FRNode.configBatch(batchingConfig);
 
-    //Detection node
-    ODInferNode::Config ODConfig;
-    ODConfig.modelFileName = "C:/work/yolo-v2-tiny/FP16-INT8/yolo-v2-tiny-ava-0001.xml";
-    ODConfig.architectureType = "yolo";
-    ODConfig.nstreams = "1";
-    ODConfig.nireq = 4;
-    auto& OdNode = pl.addNode(std::make_shared<ODInferNode>(1, 1, 1, ODConfig), "OdNode");
-    OdNode.configBatch(batchingConfig);
+    //Midas node
+    MidasInferNode::Config MidasConfig;
+    MidasConfig.modelFileName = "C:/xiong/demo_dev/compiled-models/midas/0808-midas_512x288-ww32-4.blob";
+    MidasConfig.nireq = 4;
+    MidasConfig.nn_width = 512;
+    MidasConfig.nn_height = 288;
+    auto& MidasNode = pl.addNode(std::make_shared<MidasInferNode>(1, 1, 1, MidasConfig), "MidasNode");
+    MidasNode.configBatch(batchingConfig);
 
     //Sink node
     DisplayNode::Config DispConfig;
@@ -40,8 +41,8 @@ int main(int argc, char* argv[]){
     DispNode.configBatch(batchingConfig);
 
     // Link nodes
-    pl.linkNode("FRNode", 0, "OdNode", 0);
-    pl.linkNode("OdNode", 0, "DispNode", 0);
+    pl.linkNode("FRNode", 0, "MidasNode", 0);
+    pl.linkNode("MidasNode", 0, "DispNode", 0);
 
     // Start pipeline
     pl.prepare();

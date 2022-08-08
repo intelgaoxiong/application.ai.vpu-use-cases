@@ -97,6 +97,11 @@ static UNUSED ov::Tensor wrapMat2Tensor(const cv::Mat& mat) {
     }
     auto precision = isMatFloat ? ov::element::f32 : ov::element::u8;
     auto allocator = std::make_shared<SharedTensorAllocator>(mat);
+    printf("tensor %d %d %d\n", height, width, channels);
+    if (isMatFloat)
+        printf("float\n");
+    else
+        printf("u8\n");
     return ov::Tensor(precision, ov::Shape{ 1, height, width, channels }, ov::Allocator(allocator));
 }
 

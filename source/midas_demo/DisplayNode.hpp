@@ -14,8 +14,8 @@
 #include <opencv2/imgproc.hpp>
 
 #include <utils/ocv_common.hpp>
-
-#include <OdInferNode.hpp>
+#include <utils/performance_metrics.hpp>
+#include <common.hpp>
 
 using ms = std::chrono::milliseconds;
 
@@ -126,6 +126,6 @@ private:
     std::shared_ptr<OutputTransform> m_outputTransform;
     std::shared_ptr<PerformanceMetrics> m_metrics;
 
-    cv::Mat renderDetectionData(DetectionResult& result, const ColorPalette& palette, OutputTransform& outputTransform);
+    //cv::Mat renderDetectionData(DetectionResult& result, const ColorPalette& palette, OutputTransform& outputTransform);
 };
 #endif
