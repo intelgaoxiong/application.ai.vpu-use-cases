@@ -47,3 +47,4 @@ macro(add_demo)
 endmacro()
 
 add_subdirectory(object_detection_demo)
+add_subdirectory(midas_demo)
