@@ -43,6 +43,8 @@ public:
         std::string modelFileName = "";
         std::string targetDevice = "VPUX";
 
+        std::string inferMode = "async";  //Optional. async or sync inference.
+
         std::string layout = "";  //Optional. Specify inputs layouts. Ex. NCHW or input0:NCHW,input1:NC in case of more than one input.
 
         bool autoResize = false;  //Optional. Enables resizable input with support of ROI crop & auto resize.
@@ -166,5 +168,7 @@ private:
     int64_t m_frameNum = -1;
     uint32_t nn_width = 0;  //Todo: parsed from model
     uint32_t nn_height = 0; //Todo: parsed from model
+
+    uint32_t async_infer = 0;
 };
 #endif

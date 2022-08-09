@@ -149,6 +149,16 @@ MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const Mid
     nn_width = config.nn_width;
     nn_height = config.nn_height;
     slog::info << "Midas NN input shape: " << nn_width << "x" << nn_height <<slog::endl;
+
+    if (config.inferMode != "async")
+        async_infer = 0;
+    else
+        async_infer = 1;
+
+    if (async_infer)
+        slog::info << "Midas NN inference in async mode" <<slog::endl;
+    else
+        slog::info << "Midas NN inference in sync mode" <<slog::endl;
 }
 
 IE::InferRequest::Ptr MidasInferNodeWorker::getInferRequest(){
@@ -262,32 +272,84 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
 
         auto ptrInferRequest = getInferRequest();
 
+        if (async_infer) {
+            std::function<void(InferenceEngine::InferRequest, InferenceEngine::StatusCode code)> callback = [=](InferenceEngine::InferRequest, InferenceEngine::StatusCode code) mutable
+            {
+                cv::Mat depthMat;
+                //auto start = std::chrono::steady_clock::now();
+                if (code != InferenceEngine::StatusCode::OK) {
+                    std::string msg = "Inference request completion callback failed with InferenceEngine::StatusCode: " +
+                                                                          std::to_string(code) + "\n\t";
+                    HVA_WARNING("Midas callback skipped for one frame frame id %d, stream id is %d\n error msg %s\n", vecBlobInput[0]->frameId, vecBlobInput[0]->streamId, msg.c_str());
+               }
+               else {
+                    HVA_DEBUG("Midas callback start, frame id is: %d, stream id is: %d\n", vecBlobInput[0]->frameId, vecBlobInput[0]->streamId);
+                    //post-proc
+                    depthMat = postprocess_fp16(ptrInferRequest);
+               }
+
+               //auto end = std::chrono::steady_clock::now();
+               //auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+               //HVA_DEBUG("Postproc duration is %ld, mode is %s\n", duration, m_mode.c_str());
+
+               putInferRequest(ptrInferRequest);
+               std::shared_ptr<hva::hvaBlob_t> blob(new hva::hvaBlob_t());
+               InferMeta *ptrInferMeta = new InferMeta;
+               ptrInferMeta->depthMat = depthMat;
+               ptrInferMeta->frameId = vecBlobInput[0]->frameId;
+               blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
+                           if (payload!=nullptr) {
+                               delete payload;
+                           }
+                           delete meta;
+                       });
+               blob->push(vecBlobInput[0]->get<int, ImageMetaData>(0));
+               blob->frameId = vecBlobInput[0]->frameId;
+               blob->streamId = vecBlobInput[0]->streamId;
+
+               //cv::imshow("Video", cvFrame);
+               //cv::imshow("Depth", depthMat);
+               //cv::waitKey(1);
+
+               sendOutput(blob, 0, ms(0));
+               return;
+            };
+
+            ptrInferRequest->Wait(1000000);
+            ptrInferRequest->SetCompletionCallback(callback);
+        }
         //pre-proc
         preprocess(cvFrame, ptrInferRequest);
-        //infernece
-        ptrInferRequest->Infer();
-        //post-proc
-        cv::Mat depthMat = postprocess_fp16(ptrInferRequest);
-        putInferRequest(ptrInferRequest);
+        if (async_infer) {
+            //infernece async
+            ptrInferRequest->StartAsync();
+        }
+        else {
+            //infernece
+            ptrInferRequest->Infer();
+            //post-proc
+            cv::Mat depthMat = postprocess_fp16(ptrInferRequest);
+            putInferRequest(ptrInferRequest);
 
-        std::shared_ptr<hva::hvaBlob_t> blob(new hva::hvaBlob_t());
-        InferMeta *ptrInferMeta = new InferMeta;
-        ptrInferMeta->depthMat = depthMat;
-        ptrInferMeta->frameId = vecBlobInput[0]->frameId;
-        blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
-                    if (payload!=nullptr) {
-                        delete payload;
-                    }
-                    delete meta;
-                });
-        blob->push(vecBlobInput[0]->get<int, ImageMetaData>(0));
-        blob->frameId = vecBlobInput[0]->frameId;
-        blob->streamId = vecBlobInput[0]->streamId;
+            std::shared_ptr<hva::hvaBlob_t> blob(new hva::hvaBlob_t());
+            InferMeta *ptrInferMeta = new InferMeta;
+            ptrInferMeta->depthMat = depthMat;
+            ptrInferMeta->frameId = vecBlobInput[0]->frameId;
+            blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
+                        if (payload!=nullptr) {
+                            delete payload;
+                        }
+                        delete meta;
+                    });
+            blob->push(vecBlobInput[0]->get<int, ImageMetaData>(0));
+            blob->frameId = vecBlobInput[0]->frameId;
+            blob->streamId = vecBlobInput[0]->streamId;
 
-        //cv::imshow("Video", cvFrame);
-        //cv::imshow("Depth", depthMat);
-        //cv::waitKey(1);
-        sendOutput(blob, 0, ms(0));
+            //cv::imshow("Video", cvFrame);
+            //cv::imshow("Depth", depthMat);
+            //cv::waitKey(1);
+            sendOutput(blob, 0, ms(0));
+        }
     }
 }
 
