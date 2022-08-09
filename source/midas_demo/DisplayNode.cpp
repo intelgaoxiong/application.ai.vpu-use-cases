@@ -70,6 +70,11 @@ void DisplayNodeWorker::process(std::size_t batchIdx){
             cv::Mat depthFrame = ptrInferMeta->depthMat;
             cv::imshow("Depth", depthFrame);
 #endif
+            m_metrics->update(timeStamp,
+                       cvFrame,
+                       {10, 22},
+                       cv::FONT_HERSHEY_COMPLEX,
+                       0.65);
             cv::imshow("Video", cvFrame);
             cv::waitKey(1);
         }
@@ -85,7 +90,7 @@ void DisplayNodeWorker::deinit(){
 void DisplayNodeWorker::processByFirstRun(std::size_t batchIdx) {
     m_palettePtr.reset(new ColorPalette(100));
     m_outputTransform.reset(new OutputTransform());
-    //m_metrics.reset(new PerformanceMetrics());
+    m_metrics.reset(new PerformanceMetrics());
 }
 
 void DisplayNodeWorker::processByLastRun(std::size_t batchIdx) {
