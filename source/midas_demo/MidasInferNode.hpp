@@ -131,6 +131,22 @@ public:
     using Ptr = std::shared_ptr<InferRequestPool_t>;
 };
 
+class AsyncTaskInProcess {
+public:
+    using Ptr = std::shared_ptr<AsyncTaskInProcess>;
+    AsyncTaskInProcess(IE::InferRequest::Ptr ptrReq, std::shared_ptr<hva::hvaBlob_t> hvaBlob, std::chrono::steady_clock::time_point startTime)
+        : m_ptrInferReq(ptrReq)
+        , m_hvaBlob(hvaBlob)
+        , m_asyncStartTime(startTime)
+    {
+    }
+
+public:
+    IE::InferRequest::Ptr m_ptrInferReq;
+    std::shared_ptr<hva::hvaBlob_t> m_hvaBlob;
+    std::chrono::steady_clock::time_point m_asyncStartTime;
+};
+
 class MidasInferNodeWorker : public hva::hvaNodeWorker_t{
 public:
     MidasInferNodeWorker(hva::hvaNode_t* parentNode, const MidasInferNode::Config& config);
@@ -164,10 +180,15 @@ private:
     InferRequestPool_t::Ptr m_ptrInferRequestPool;
     std::string m_inputName;
 
+    void enqueueAsyncTask(AsyncTaskInProcess::Ptr ptrTask);
+    AsyncTaskInProcess::Ptr dequeueAsyncTask();
+    AsyncTaskInProcess::Ptr makeAsyncTask(IE::InferRequest::Ptr ptrReq, std::shared_ptr<hva::hvaBlob_t> hvaBlob, std::chrono::steady_clock::time_point startTime);
+
     std::shared_ptr<std::thread> m_resultThread;
     std::atomic_bool m_exec {true};
-    std::mutex m_blobMutex;
-    std::queue<std::shared_ptr<hva::hvaBlob_t>> m_inferWaitingQueue;
+    std::mutex m_taskMutex;
+    std::condition_variable m_asyncTaskQueueNotEmpty;
+    std::queue<AsyncTaskInProcess::Ptr> m_asyncTaskQueue;
     int64_t m_frameNum = -1;
     uint32_t nn_width = 0;  //Todo: parsed from model
     uint32_t nn_height = 0; //Todo: parsed from model

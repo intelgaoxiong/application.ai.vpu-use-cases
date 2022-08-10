@@ -6,6 +6,7 @@
 #include <utils/image_utils.h>
 
 #include <pipelines/metadata.h>
+#include <windows.h>
 
 //#define raw_output 1
 
@@ -268,6 +269,42 @@ void MidasInferNodeWorker::putInferRequest(IE::InferRequest::Ptr ptrInferRequest
     return;
 }
 
+void MidasInferNodeWorker::enqueueAsyncTask(AsyncTaskInProcess::Ptr ptrTask)
+{
+    {
+        std::lock_guard<std::mutex> guard(m_taskMutex);
+        m_asyncTaskQueue.push(ptrTask);
+    }
+    m_asyncTaskQueueNotEmpty.notify_one();
+}
+
+AsyncTaskInProcess::Ptr MidasInferNodeWorker::dequeueAsyncTask()
+{
+    std::lock_guard<std::mutex> guard(m_taskMutex);
+
+    while (m_exec && m_asyncTaskQueue.empty()) {
+        std::unique_lock<std::mutex> lock(m_taskMutex, std::defer_lock);
+        m_asyncTaskQueueNotEmpty.wait(lock);
+    }
+    if (!m_exec)
+        return {};
+
+    auto taskPtr = m_asyncTaskQueue.front();
+    m_asyncTaskQueue.pop();
+
+    return taskPtr;
+}
+
+AsyncTaskInProcess::Ptr MidasInferNodeWorker::makeAsyncTask(IE::InferRequest::Ptr ptrReq, std::shared_ptr<hva::hvaBlob_t> hvaBlob, std::chrono::steady_clock::time_point startTime)
+{
+    auto asyncTaskPtr = std::make_shared<AsyncTaskInProcess>(ptrReq, hvaBlob, startTime);
+    if (!asyncTaskPtr) {
+        std::cerr << "Error, fail to create  AsyncTaskInProcess ptr" << std::endl;
+        return nullptr;
+    }
+    return asyncTaskPtr;
+}
+
 void MidasInferNodeWorker::process(std::size_t batchIdx){
     auto vecBlobInput = hvaNodeWorker_t::getParentPtr()->getBatchedInput(batchIdx, std::vector<size_t>{0});
     if (vecBlobInput.size() != 0)
@@ -290,53 +327,11 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
 
         auto asyncInferStart = std::chrono::steady_clock::now();
         if (async_infer) {
-            std::function<void(InferenceEngine::InferRequest, InferenceEngine::StatusCode code)> callback = [=](InferenceEngine::InferRequest, InferenceEngine::StatusCode code) mutable
-            {
-                inferenceMetrics.update(asyncInferStart);
-                cv::Mat depthMat;
-                //auto start = std::chrono::steady_clock::now();
-                if (code != InferenceEngine::StatusCode::OK) {
-                    std::string msg = "Inference request completion callback failed with InferenceEngine::StatusCode: " +
-                                                                          std::to_string(code) + "\n\t";
-                    HVA_WARNING("Midas callback skipped for one frame frame id %d, stream id is %d\n error msg %s\n", vecBlobInput[0]->frameId, vecBlobInput[0]->streamId, msg.c_str());
-               }
-               else {
-                    HVA_DEBUG("Midas callback start, frame id is: %d, stream id is: %d\n", vecBlobInput[0]->frameId, vecBlobInput[0]->streamId);
-                    //post-proc
-                    depthMat = postprocess_fp16(ptrInferRequest);
-               }
-
-               //auto end = std::chrono::steady_clock::now();
-               //auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-               //HVA_DEBUG("Postproc duration is %ld, mode is %s\n", duration, m_mode.c_str());
-
-               putInferRequest(ptrInferRequest);
-               std::shared_ptr<hva::hvaBlob_t> blob(new hva::hvaBlob_t());
-               InferMeta *ptrInferMeta = new InferMeta;
-               ptrInferMeta->depthMat = depthMat;
-               ptrInferMeta->frameId = vecBlobInput[0]->frameId;
-               blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
-                           if (payload!=nullptr) {
-                               delete payload;
-                           }
-                           delete meta;
-                       });
-               blob->push(vecBlobInput[0]->get<int, ImageMetaData>(0));
-               blob->frameId = vecBlobInput[0]->frameId;
-               blob->streamId = vecBlobInput[0]->streamId;
-
-               //cv::imshow("Video", cvFrame);
-               //cv::imshow("Depth", depthMat);
-               //cv::waitKey(1);
-
-               sendOutput(blob, 0, ms(0));
-               return;
-            };
-
-            ptrInferRequest->Wait(1000000);
-            ptrInferRequest->SetCompletionCallback(callback);
             //infernece async
             ptrInferRequest->StartAsync();
+
+            auto taskPtr = makeAsyncTask(ptrInferRequest, vecBlobInput[0], std::chrono::steady_clock::now());
+            enqueueAsyncTask(taskPtr);
         } else {
             //infernece sync
             auto inferSyncStart = std::chrono::steady_clock::now();
@@ -382,64 +377,50 @@ void MidasInferNodeWorker::logLatencyPerStage(double preprocLat, double inferLat
 }
 
 void MidasInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
-#if 0
     m_resultThread = std::make_shared<std::thread> ([&]() {
         while (m_exec) {
-            //m_pipeline->waitForData();
-            m_pipeline->waitForResult();
 
-            std::shared_ptr<hva::hvaBlob_t> pendingBlob;
-            {
-                std::unique_lock<std::mutex> lock(m_blobMutex);
-                pendingBlob = m_inferWaitingQueue.front();
-                m_inferWaitingQueue.pop();
+            auto task = dequeueAsyncTask();
+            if (!task) {
+                continue;
             }
 
+            std::shared_ptr<hva::hvaBlob_t> pendingBlob = task->m_hvaBlob;
+            IE::InferRequest::Ptr ptrPendingReq = task->m_ptrInferReq;
+
+            ptrPendingReq->Wait();
+            //Got result
+            inferenceMetrics.update(task->m_asyncStartTime);
+
+            cv::Mat depthMat = postprocess_fp16(ptrPendingReq);
+
+            putInferRequest(ptrPendingReq);
             std::shared_ptr<hva::hvaBlob_t> blob(new hva::hvaBlob_t());
             InferMeta *ptrInferMeta = new InferMeta;
-            //Post-process
-            auto nnresult = m_pipeline->getResult();
-            if (nnresult) {
-                DetectionResult result = nnresult->asRef<DetectionResult>();
-#if raw_output
-                // Visualizing result data over source image
-                slog::debug << " -------------------- Frame # " << result.frameId << "--------------------" << slog::endl;
-                slog::debug << " Class ID  | Confidence | XMIN | YMIN | XMAX | YMAX " << slog::endl;
-                for (auto& obj : result.objects) {
-                    slog::debug << " " << std::left << std::setw(9) << obj.label << " | " << std::setw(10) << obj.confidence
-                                << " | " << std::setw(4) << int(obj.x) << " | " << std::setw(4) << int(obj.y) << " | "
-                                << std::setw(4) << int(obj.x + obj.width) << " | " << std::setw(4) << int(obj.y + obj.height)
-                                << slog::endl;
-                }
-#endif
-                ptrInferMeta->detResult = result;
-            } else {
-                HVA_WARNING("No NN results, should not happen\n");
-                return;
-            }
-
+            ptrInferMeta->depthMat = depthMat;
             ptrInferMeta->frameId = pendingBlob->frameId;
             blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
-                    if (payload!=nullptr) {
-                        delete payload;
-                    }
-                    delete meta;
-                });
+                        if (payload!=nullptr) {
+                            delete payload;
+                        }
+                        delete meta;
+                    });
             blob->push(pendingBlob->get<int, ImageMetaData>(0));
             blob->frameId = pendingBlob->frameId;
             blob->streamId = pendingBlob->streamId;
 
+            //cv::imshow("Video", cvFrame);
+            //cv::imshow("Depth", depthMat);
+            //cv::waitKey(1);
+
             sendOutput(blob, 0, ms(0));
         }
     });
-#endif
 }
 
 void MidasInferNodeWorker::processByLastRun(std::size_t batchIdx) {
-#if 0
     if (m_resultThread && m_resultThread->joinable()) {
         m_exec = false;
         m_resultThread->join();
     }
-#endif
 }
