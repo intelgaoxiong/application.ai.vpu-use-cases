@@ -65,16 +65,16 @@ void DisplayNodeWorker::process(std::size_t batchIdx){
             HVA_DEBUG("DispalyNode[%u] outputResolution %d x %d", vInput[0]->streamId, outputResolution.width, outputResolution.height);
 
             auto timeStamp = vInput[0]->get<int, ImageMetaData>(1)->getMeta()->timeStamp;
+            m_metrics->update(timeStamp,
+                    cvFrame,
+                    {10, 22},
+                    cv::FONT_HERSHEY_COMPLEX,
+                    0.65);
 #if 1
             auto ptrInferMeta = vInput[0]->get<int, InferMeta>(0)->getMeta();
             cv::Mat depthFrame = ptrInferMeta->depthMat;
             cv::imshow("Depth", depthFrame);
 #endif
-            m_metrics->update(timeStamp,
-                       cvFrame,
-                       {10, 22},
-                       cv::FONT_HERSHEY_COMPLEX,
-                       0.65);
             cv::imshow("Video", cvFrame);
             cv::waitKey(1);
         }

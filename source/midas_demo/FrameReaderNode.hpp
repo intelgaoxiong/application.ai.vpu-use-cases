@@ -24,6 +24,7 @@ public:
         std::string input;
         bool infiniteLoop;
         read_type readType;  //read_type::efficient or read_type::safe
+        double maxFPS = 0.0f;
     };
 
     FrameReaderNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config);
@@ -41,10 +42,10 @@ public:
 
     /**
     * @brief Main frame decoding component
-    * 
+    *
     * @param batchIdx batch index assigned by framework
     * @return void
-    * 
+    *
     */
     virtual void process(std::size_t batchIdx) override;
     virtual void init() override;
@@ -65,5 +66,7 @@ private:
 
     std::atomic_uint m_currDepth = 0;
     unsigned int m_maxDepth =16;
+    double m_maxFPS = 0.0f;
+    double m_intervalMs;
 };
 #endif

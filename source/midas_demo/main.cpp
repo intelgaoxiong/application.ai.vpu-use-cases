@@ -19,10 +19,12 @@ int main(int argc, char* argv[]){
 
     //Source node
     FrameReaderNode::Config FRConfig;
+    //FRConfig.input = "0"; //Camera source
     //FRConfig.input = "C:/xiong/demo_dev/sample-videos/car-detection.mp4";
     FRConfig.input = "C:/xiong/demo_dev/sample-videos/worker-zone-detection.mp4";
     FRConfig.infiniteLoop = true;
     FRConfig.readType = read_type::safe;
+    FRConfig.maxFPS = 55.0;
     auto& FRNode = pl.setSource(std::make_shared<FrameReaderNode>(0, 1, 1, FRConfig), "FRNode");
     FRNode.configBatch(batchingConfig);
 

@@ -18,6 +18,10 @@ FrameReaderNodeWorker::FrameReaderNodeWorker(hva::hvaNode_t* parentNode, int str
     m_input = config.input;
     m_loop = config.infiniteLoop;
     m_rt = config.readType;
+    m_maxFPS = config.maxFPS;
+    if (m_maxFPS != 0) {
+        m_intervalMs = (double) (1000.0f) / m_maxFPS;
+    }
     HVA_DEBUG("FrameReaderNodeWorker[%d] input %s\n", m_streamId, m_input.c_str());
 
 }
@@ -30,8 +34,17 @@ void FrameReaderNodeWorker::process(std::size_t batchIdx){
             break;
     }
     //--- Capturing frame
-    auto startTime = std::chrono::steady_clock::now();
+    auto capStartTime = std::chrono::steady_clock::now();
     cv::Mat curr_frame = m_cap->read();
+    auto capEndTime = std::chrono::steady_clock::now();
+    auto capDuration = std::chrono::duration_cast<std::chrono::milliseconds>(capEndTime - capStartTime).count();
+
+    if (m_maxFPS != 0) {
+        if (m_intervalMs > (double)capDuration) {
+            HVA_DEBUG("Throttle frame source rate by sleep %f ms, read cost %ld ms\n", m_intervalMs - (double)capDuration, capDuration);
+            Sleep(m_intervalMs - capDuration);
+        }
+    }
 
     bool pipe_stop_event = false;
     FrameReaderNode  * m_FRNode = dynamic_cast<FrameReaderNode*>(hva::hvaNodeWorker_t::getParentPtr());
@@ -56,6 +69,7 @@ void FrameReaderNodeWorker::process(std::size_t batchIdx){
     else
         eof = new int(0);
 
+    auto startTime = std::chrono::steady_clock::now();
     blob->emplace<int, ImageMetaData>(eof, 8u, new ImageMetaData{curr_frame, startTime},
             [this, pipe_stop_event, m_FRNode](int * m, ImageMetaData * m_meta) {
                 if(pipe_stop_event) {
