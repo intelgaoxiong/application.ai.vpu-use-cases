@@ -67,6 +67,7 @@ private:
     std::atomic_uint m_currDepth = 0;
     unsigned int m_maxDepth =16;
     double m_maxFPS = 0.0f;
-    double m_intervalMs;
+    std::chrono::nanoseconds m_intervalNs;
+    std::chrono::steady_clock::time_point m_lastSendTime;
 };
 #endif

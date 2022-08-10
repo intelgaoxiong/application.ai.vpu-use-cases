@@ -3,6 +3,24 @@
 
 #include <windows.h>
 
+static NTSTATUS(__stdcall* NtDelayExecution)(BOOL Alertable, PLARGE_INTEGER DelayInterval) = (NTSTATUS(__stdcall*)(BOOL, PLARGE_INTEGER)) GetProcAddress(GetModuleHandle("ntdll.dll"), "NtDelayExecution");
+static NTSTATUS(__stdcall* ZwSetTimerResolution)(IN ULONG RequestedResolution, IN BOOLEAN Set, OUT PULONG ActualResolution) = (NTSTATUS(__stdcall*)(ULONG, BOOLEAN, PULONG)) GetProcAddress(GetModuleHandle("ntdll.dll"), "ZwSetTimerResolution");
+
+static void high_resolution_sleep(const std::chrono::nanoseconds& sleep_time)
+{
+    static bool is_timer_res_set = false;
+    if (!is_timer_res_set)
+    {
+        ULONG actualResolution;
+        ZwSetTimerResolution(1, true, &actualResolution);
+        is_timer_res_set = false;
+    }
+
+    LARGE_INTEGER interval;
+    interval.QuadPart = -1 * (int)((float)(sleep_time.count() / 100.));
+    NtDelayExecution(false, &interval);
+}
+
 FrameReaderNode::FrameReaderNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config):
         m_workerIdx(0), hva::hvaNode_t(inPortNum, outPortNum, totalThreadNum), m_cfg(config){
 
@@ -20,7 +38,7 @@ FrameReaderNodeWorker::FrameReaderNodeWorker(hva::hvaNode_t* parentNode, int str
     m_rt = config.readType;
     m_maxFPS = config.maxFPS;
     if (m_maxFPS != 0) {
-        m_intervalMs = (double) (1000.0f) / m_maxFPS;
+        m_intervalNs = std::chrono::nanoseconds((unsigned long long)(1000000000.0 / m_maxFPS));
     }
     HVA_DEBUG("FrameReaderNodeWorker[%d] input %s\n", m_streamId, m_input.c_str());
 
@@ -29,22 +47,13 @@ FrameReaderNodeWorker::FrameReaderNodeWorker(hva::hvaNode_t* parentNode, int str
 void FrameReaderNodeWorker::process(std::size_t batchIdx){
     while (1) {
         if (m_currDepth >= m_maxDepth)
-            Sleep(5);
+            high_resolution_sleep(std::chrono::nanoseconds(5 * 1000 * 1000));
         else
             break;
     }
-    //--- Capturing frame
-    auto capStartTime = std::chrono::steady_clock::now();
-    cv::Mat curr_frame = m_cap->read();
-    auto capEndTime = std::chrono::steady_clock::now();
-    auto capDuration = std::chrono::duration_cast<std::chrono::milliseconds>(capEndTime - capStartTime).count();
 
-    if (m_maxFPS != 0) {
-        if (m_intervalMs > (double)capDuration) {
-            HVA_DEBUG("Throttle frame source rate by sleep %f ms, read cost %ld ms\n", m_intervalMs - (double)capDuration, capDuration);
-            Sleep(m_intervalMs - capDuration);
-        }
-    }
+    //--- Capturing frame
+    cv::Mat curr_frame = m_cap->read();
 
     bool pipe_stop_event = false;
     FrameReaderNode  * m_FRNode = dynamic_cast<FrameReaderNode*>(hva::hvaNodeWorker_t::getParentPtr());
@@ -84,6 +93,14 @@ void FrameReaderNodeWorker::process(std::size_t batchIdx){
     blob->streamId = m_streamId;
     m_frame_index ++;
     m_currDepth ++;
+
+    if (m_frame_index > 1) {
+        auto sendDuration = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - m_lastSendTime);
+        if (sendDuration < m_intervalNs) {
+            high_resolution_sleep(m_intervalNs - sendDuration);
+        }
+    }
+    m_lastSendTime = std::chrono::steady_clock::now();
     sendOutput(blob, 0, ms(0));
 }
 
