@@ -193,11 +193,13 @@ static UNUSED InferenceEngine::Blob::Ptr wrapMat2Blob(const cv::Mat& mat) {
 }
 
 void MidasInferNodeWorker::preprocess(const cv::Mat & img, IE::InferRequest::Ptr& request) {
+    auto preProcStart = std::chrono::steady_clock::now();
     const auto& resizedImg = resizeImageExt(img, nn_width, nn_height);
     //cv::imshow("resizedImg", resizedImg);
     //cv::waitKey(1);
 
     request->SetBlob(m_inputName, wrapMat2Blob(resizedImg));
+    preprocessMetrics.update(preProcStart);
 }
 
 static void convertFp16ToU8(short * in, uint8_t * out, uint32_t width, float scale)
@@ -220,6 +222,8 @@ cv::Mat MidasInferNodeWorker::postprocess_fp16(IE::InferRequest::Ptr& request) {
     {
         throw std::runtime_error("output info empty");
     }
+
+    auto postProcStart = std::chrono::steady_clock::now();
 
     auto outputBlobName = m_executableNetwork.GetOutputsInfo().begin()->first;
     //slog::info << "Midas NN output name: " << outputBlobName <<slog::endl;
@@ -252,6 +256,8 @@ cv::Mat MidasInferNodeWorker::postprocess_fp16(IE::InferRequest::Ptr& request) {
     else
         printf("error, max is zero\n");
 
+    postprocessMetrics.update(postProcStart);
+
     return mat;
 
 }
@@ -267,14 +273,26 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
     if (vecBlobInput.size() != 0)
     {
         HVA_DEBUG("MidasInferNode received blob with frameid %u and streamid %u", vecBlobInput[0]->frameId, vecBlobInput[0]->streamId);
+
+        if ((vecBlobInput[0]->frameId % 100) == 0) {
+            logLatencyPerStage(preprocessMetrics.getTotal().latency,
+                           inferenceMetrics.getTotal().latency,
+                           postprocessMetrics.getTotal().latency);
+        }
+
         auto cvFrame = vecBlobInput[0]->get<int, ImageMetaData>(0)->getMeta()->img;
         auto startTime = vecBlobInput[0]->get<int, ImageMetaData>(0)->getMeta()->timeStamp;
 
         auto ptrInferRequest = getInferRequest();
 
+        //pre-proc
+        preprocess(cvFrame, ptrInferRequest);
+
+        auto asyncInferStart = std::chrono::steady_clock::now();
         if (async_infer) {
             std::function<void(InferenceEngine::InferRequest, InferenceEngine::StatusCode code)> callback = [=](InferenceEngine::InferRequest, InferenceEngine::StatusCode code) mutable
             {
+                inferenceMetrics.update(asyncInferStart);
                 cv::Mat depthMat;
                 //auto start = std::chrono::steady_clock::now();
                 if (code != InferenceEngine::StatusCode::OK) {
@@ -317,16 +335,13 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
 
             ptrInferRequest->Wait(1000000);
             ptrInferRequest->SetCompletionCallback(callback);
-        }
-        //pre-proc
-        preprocess(cvFrame, ptrInferRequest);
-        if (async_infer) {
             //infernece async
             ptrInferRequest->StartAsync();
-        }
-        else {
-            //infernece
+        } else {
+            //infernece sync
+            auto inferSyncStart = std::chrono::steady_clock::now();
             ptrInferRequest->Infer();
+            inferenceMetrics.update(inferSyncStart);
             //post-proc
             cv::Mat depthMat = postprocess_fp16(ptrInferRequest);
             putInferRequest(ptrInferRequest);
@@ -357,6 +372,13 @@ void MidasInferNodeWorker::init(){
 }
 
 void MidasInferNodeWorker::deinit(){
+}
+
+void MidasInferNodeWorker::logLatencyPerStage(double preprocLat, double inferLat, double postprocLat) {
+    slog::info << "\t>>>>>Latency per stage<<<<<" << slog::endl;
+    slog::info << "\tPreprocessing:\t" << preprocLat << " ms" << slog::endl;
+    slog::info << "\tInference:\t" << inferLat << " ms" << slog::endl;
+    slog::info << "\tPostprocessing:\t" << postprocLat << " ms" << slog::endl;
 }
 
 void MidasInferNodeWorker::processByFirstRun(std::size_t batchIdx) {

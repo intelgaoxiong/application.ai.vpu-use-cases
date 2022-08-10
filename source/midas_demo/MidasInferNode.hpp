@@ -16,6 +16,8 @@
 
 #include <inference_engine.hpp>
 
+#include <utils/performance_metrics.hpp>
+
 namespace IE = InferenceEngine;
 
 //#include <models/detection_model.h>
@@ -154,6 +156,7 @@ public:
 
     void preprocess(const cv::Mat & img, IE::InferRequest::Ptr& request);
     cv::Mat postprocess_fp16(IE::InferRequest::Ptr& request);
+    void logLatencyPerStage(double preprocLat, double inferLat, double postprocLat);
 
 private:
     IE::Core m_ie;
@@ -170,5 +173,9 @@ private:
     uint32_t nn_height = 0; //Todo: parsed from model
 
     uint32_t async_infer = 0;
+
+    PerformanceMetrics inferenceMetrics;
+    PerformanceMetrics preprocessMetrics;
+    PerformanceMetrics postprocessMetrics;
 };
 #endif
