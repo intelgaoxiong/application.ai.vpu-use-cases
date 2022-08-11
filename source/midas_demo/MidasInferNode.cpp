@@ -137,18 +137,30 @@ MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const Mid
     // ---- Create infer request
     m_ptrInferRequestPool = std::make_shared<InferRequestPool_t>(m_executableNetwork, config.nireq);
 
-    if (m_executableNetwork.GetInputsInfo().empty())
+    auto inputsInfo = m_executableNetwork.GetInputsInfo();
+
+    if (inputsInfo.empty())
     {
         throw std::runtime_error("input info empty");
+    } else if (inputsInfo.size() > 1) {
+        throw std::runtime_error("Only support 1 input model for now");
     }
 
-    auto inputsInfo = m_executableNetwork.GetInputsInfo();
-    m_inputName = m_executableNetwork.GetInputsInfo().begin()->first;
+    m_inputName = inputsInfo.begin()->first;
     slog::info << "Midas NN input name: " << m_inputName <<slog::endl;
 
-    nn_width = config.nn_width;
-    nn_height = config.nn_height;
-    nn_channel = 3;
+    auto inputInfo = inputsInfo.begin()->second;
+    auto inputTensorDesc = inputInfo->getTensorDesc();
+    auto inputLayout = inputTensorDesc.getLayout();
+
+    if (inputLayout == IE::Layout::NCHW) {
+        nn_width = inputTensorDesc.getDims()[3];
+        nn_height = inputTensorDesc.getDims()[2];
+        nn_channel = inputTensorDesc.getDims()[1];
+    } else {
+        throw std::runtime_error("Only support Layout::NCHW input for now");
+    }
+
     slog::info << "Midas NN input shape: " << nn_width << "x" << nn_height <<slog::endl;
 
     if (config.inferMode != "async")

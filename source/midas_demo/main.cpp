@@ -33,8 +33,6 @@ int main(int argc, char* argv[]){
     MidasConfig.modelFileName = "C:/xiong/demo_dev/compiled-models/midas/0808-midas_512x288-ww32-4.blob";
     MidasConfig.nireq = 4;
     MidasConfig.inferMode = "async";
-    MidasConfig.nn_width = 512;
-    MidasConfig.nn_height = 288;
     auto& MidasNode = pl.addNode(std::make_shared<MidasInferNode>(1, 1, 1, MidasConfig), "MidasNode");
     MidasNode.configBatch(batchingConfig);
 

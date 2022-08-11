@@ -58,8 +58,6 @@ public:
         bool reverse_input_channels = false;
         std::string mean_values = "";
         std::string scale_values = "";
-        uint32_t nn_width = 0;  //Todo: parsed from model
-        uint32_t nn_height = 0; //Todo: parsed from model
     };
 
     MidasInferNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config);
@@ -190,9 +188,9 @@ private:
     std::condition_variable m_asyncTaskQueueNotEmpty;
     std::queue<AsyncTaskInProcess::Ptr> m_asyncTaskQueue;
     int64_t m_frameNum = -1;
-    uint32_t nn_width = 0;  //Todo: parsed from model
-    uint32_t nn_height = 0; //Todo: parsed from model
-    uint32_t nn_channel = 0; //Todo: parsed from model
+    uint32_t nn_width = 0;
+    uint32_t nn_height = 0;
+    uint32_t nn_channel = 0;
 
     uint32_t async_infer = 0;
 
