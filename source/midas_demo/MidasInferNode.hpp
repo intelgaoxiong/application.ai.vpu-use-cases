@@ -192,6 +192,7 @@ private:
     int64_t m_frameNum = -1;
     uint32_t nn_width = 0;  //Todo: parsed from model
     uint32_t nn_height = 0; //Todo: parsed from model
+    uint32_t nn_channel = 0; //Todo: parsed from model
 
     uint32_t async_infer = 0;
 

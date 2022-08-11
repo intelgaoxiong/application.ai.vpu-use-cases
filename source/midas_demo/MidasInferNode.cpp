@@ -6,9 +6,8 @@
 #include <utils/image_utils.h>
 
 #include <pipelines/metadata.h>
-#include <windows.h>
 
-//#define raw_output 1
+#define SET_BLOB 0  //Disable SetBlob method, not stable currently.
 
 MidasInferNode::MidasInferNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config):
         hva::hvaNode_t(inPortNum, outPortNum, totalThreadNum), m_cfg(config){
@@ -149,6 +148,7 @@ MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const Mid
 
     nn_width = config.nn_width;
     nn_height = config.nn_height;
+    nn_channel = 3;
     slog::info << "Midas NN input shape: " << nn_width << "x" << nn_height <<slog::endl;
 
     if (config.inferMode != "async")
@@ -193,13 +193,44 @@ static UNUSED InferenceEngine::Blob::Ptr wrapMat2Blob(const cv::Mat& mat) {
     return InferenceEngine::make_shared_blob<uint8_t>(tDesc, mat.data);
 }
 
+//interleved -> plannar (HWC -> CHW)
+static void convertHWC2CHW(uint8_t * chw_dst, uint8_t * hwc_src, uint32_t width, uint32_t height, uint32_t channel) {
+    for (int c = 0; c < channel; c ++) {
+        for (int h =0; h < height; h ++) {
+            for (int w = 0; w < width; w ++) {
+                chw_dst[w + h * width + c * height * width]  = hwc_src[channel * (w + h * width) + c];
+            }
+        }
+    }
+}
+
 void MidasInferNodeWorker::preprocess(const cv::Mat & img, IE::InferRequest::Ptr& request) {
     auto preProcStart = std::chrono::steady_clock::now();
     const auto& resizedImg = resizeImageExt(img, nn_width, nn_height);
     //cv::imshow("resizedImg", resizedImg);
     //cv::waitKey(1);
 
+#if SET_BLOB
     request->SetBlob(m_inputName, wrapMat2Blob(resizedImg));
+#else
+    IE::Blob::Ptr inputBlob = request->GetBlob(m_inputName);
+    IE::MemoryBlob::Ptr minput = IE::as<IE::MemoryBlob>(inputBlob);
+    if (!minput) {
+        IE_THROW() << "We expect inputBlob to be inherited from MemoryBlob in "
+                      "fillBlobImage, "
+                   << "but by fact we were not able to cast inputBlob to MemoryBlob";
+    }
+    // locked memory holder should be alive all time while access to its buffer
+    // happens
+    auto minputHolder = minput->wmap();
+    auto inputBlobData = minputHolder.as<uint8_t*>();
+
+    uint8_t * interleved_data = (uint8_t * )resizedImg.data;
+    uint8_t * plannar_data = new uint8_t[nn_width * nn_height * nn_channel];
+    convertHWC2CHW(plannar_data, interleved_data, nn_width, nn_height, nn_channel);
+    memcpy(inputBlobData, plannar_data, inputBlob->byteSize());
+    delete plannar_data;
+#endif
     preprocessMetrics.update(preProcStart);
 }
 
