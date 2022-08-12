@@ -237,11 +237,7 @@ void MidasInferNodeWorker::preprocess(const cv::Mat & img, IE::InferRequest::Ptr
     auto minputHolder = minput->wmap();
     auto inputBlobData = minputHolder.as<uint8_t*>();
 
-    uint8_t * interleved_data = (uint8_t * )resizedImg.data;
-    uint8_t * plannar_data = new uint8_t[nn_width * nn_height * nn_channel];
-    convertHWC2CHW(plannar_data, interleved_data, nn_width, nn_height, nn_channel);
-    memcpy(inputBlobData, plannar_data, inputBlob->byteSize());
-    delete plannar_data;
+    convertHWC2CHW(inputBlobData, resizedImg.data, nn_width, nn_height, nn_channel);
 #endif
     preprocessMetrics.update(preProcStart);
 }
