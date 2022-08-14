@@ -29,7 +29,8 @@ DEFINE_uint32(nireq, 4, nireq_message);
 DEFINE_string(api, "async", api_message);
 
 //Display Node config
-//
+static const char res_message[] = "Optional. Display resolution: (width_value)x(height_value).";
+DEFINE_string(displayRes, "", res_message);
 
 static void showUsage() {
     std::cout << std::endl;
@@ -45,6 +46,8 @@ static void showUsage() {
     std::cout << "    -m \"<path>\"               " << model_message << std::endl;
     std::cout << "    -nireq \"<integer>\"        " << nireq_message << std::endl;
     std::cout << "    -api                     " << api_message << std::endl;
+
+    std::cout << "    -displayRes                     " << res_message << std::endl;
 }
 
 bool ParseAndCheckCommandLine(int argc, char* argv[]) {
@@ -114,6 +117,7 @@ int main(int argc, char* argv[]){
 
     //Sink node
     DisplayNode::Config DispConfig;
+    DispConfig.dispRes = FLAGS_displayRes;
     auto& DispNode = pl.addNode(std::make_shared<DisplayNode>(1, 0, 1, DispConfig), "DispNode");
     DispNode.configBatch(batchingConfig);
 

@@ -93,8 +93,7 @@ public:
 class DisplayNode : public hva::hvaNode_t{
 public:
     struct Config{
-        unsigned reserved1;
-        unsigned reserved2;
+        std::string dispRes;
     };
 
     DisplayNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config);
@@ -102,13 +101,12 @@ public:
     virtual std::shared_ptr<hva::hvaNodeWorker_t> createNodeWorker() const override;
 
 private:
-    unsigned m_reserved1;
-    unsigned m_reserved2;
+    Config m_cfg;
 };
 
 class DisplayNodeWorker : public hva::hvaNodeWorker_t{
 public:
-    DisplayNodeWorker(hva::hvaNode_t* parentNode, unsigned reserved1, unsigned reserved2);
+    DisplayNodeWorker(hva::hvaNode_t* parentNode, const DisplayNode::Config& config);
 
     virtual void process(std::size_t batchIdx) override;
     virtual void init() override;
@@ -118,14 +116,11 @@ public:
     virtual void processByLastRun(std::size_t batchIdx) override;
 
 private:
-    unsigned m_reserved1;
-    unsigned m_reserved2;
+    cv::Size m_displayResolution;
 
     cv::Mat curr_frame;
     std::shared_ptr<ColorPalette> m_palettePtr;
     std::shared_ptr<OutputTransform> m_outputTransform;
     std::shared_ptr<PerformanceMetrics> m_metrics;
-
-    //cv::Mat renderDetectionData(DetectionResult& result, const ColorPalette& palette, OutputTransform& outputTransform);
 };
 #endif
