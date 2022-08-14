@@ -351,9 +351,9 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
         HVA_DEBUG("MidasInferNode received blob with frameid %u and streamid %u", vecBlobInput[0]->frameId, vecBlobInput[0]->streamId);
 
         if ((vecBlobInput[0]->frameId % 100) == 0) {
-            logLatencyPerStage(preprocessMetrics.getTotal().latency,
-                           inferenceMetrics.getTotal().latency,
-                           postprocessMetrics.getTotal().latency);
+            logLatencyPerStage(preprocessMetrics.getLast().latency,
+                           inferenceMetrics.getLast().latency,
+                           postprocessMetrics.getLast().latency);
         }
 
         auto cvFrame = vecBlobInput[0]->get<int, ImageMetaData>(0)->getMeta()->img;
@@ -364,12 +364,12 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
         //pre-proc
         preprocess(cvFrame, ptrInferRequest);
 
-        auto asyncInferStart = std::chrono::steady_clock::now();
         if (async_infer) {
             //infernece async
+            auto asyncInferStart = std::chrono::steady_clock::now();
             ptrInferRequest->StartAsync();
 
-            auto taskPtr = makeAsyncTask(ptrInferRequest, vecBlobInput[0], std::chrono::steady_clock::now());
+            auto taskPtr = makeAsyncTask(ptrInferRequest, vecBlobInput[0], asyncInferStart);
             enqueueAsyncTask(taskPtr);
         } else {
             //infernece sync
@@ -384,6 +384,7 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
             InferMeta *ptrInferMeta = new InferMeta;
             ptrInferMeta->depthMat = depthMat;
             ptrInferMeta->frameId = vecBlobInput[0]->frameId;
+            ptrInferMeta->timeStamp = inferSyncStart;
             blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
                         if (payload!=nullptr) {
                             delete payload;
@@ -438,6 +439,7 @@ void MidasInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
             InferMeta *ptrInferMeta = new InferMeta;
             ptrInferMeta->depthMat = depthMat;
             ptrInferMeta->frameId = pendingBlob->frameId;
+            ptrInferMeta->timeStamp = task->m_asyncStartTime;
             blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
                         if (payload!=nullptr) {
                             delete payload;

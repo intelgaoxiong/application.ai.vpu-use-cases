@@ -44,7 +44,7 @@ void DisplayNodeWorker::process(std::size_t batchIdx){
 
 #if 1
             //Latency data does not include the time cost of frame scaling.
-            auto timeStamp = vInput[0]->get<int, ImageMetaData>(1)->getMeta()->timeStamp;
+            auto timeStamp = vInput[0]->get<int, InferMeta>(0)->getMeta()->timeStamp;
             m_metrics->update(timeStamp);
             m_outputTransform->resize(cvFrame);
             m_metrics->paintMetrics(cvFrame,
@@ -53,7 +53,7 @@ void DisplayNodeWorker::process(std::size_t batchIdx){
                     0.65);
 #else
             m_outputTransform->resize(cvFrame);
-            auto timeStamp = vInput[0]->get<int, ImageMetaData>(1)->getMeta()->timeStamp;
+            auto timeStamp = vInput[0]->get<int, InferMeta>(0)->getMeta()->timeStamp;
             m_metrics->update(timeStamp,
                     cvFrame,
                     {10, 22},
