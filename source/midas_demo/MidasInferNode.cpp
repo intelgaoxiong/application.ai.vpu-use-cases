@@ -257,6 +257,25 @@ static void convertFp16ToU8(short * in, uint8_t * out, uint32_t width, float sca
     }
 }
 
+static void getU8Depth(short * in, uint8_t * out, uint32_t width, short max, short min)
+{
+    int i;
+
+    for (int i = 0; i < width; i++)
+    {
+        if (in[i] < 0) {
+            out[i] = 0;
+        }
+        else {
+            float value = (float)255 * ((float)(in[i] - min) / (float)(max - min));
+            if (value > 255)
+                out[i] = 255;
+            else
+                out[i] = (uint8_t)value;
+        }
+    }
+}
+
 cv::Mat MidasInferNodeWorker::postprocess_fp16(IE::InferRequest::Ptr& request) {
     if (m_executableNetwork.GetOutputsInfo().empty())
     {
@@ -283,18 +302,18 @@ cv::Mat MidasInferNodeWorker::postprocess_fp16(IE::InferRequest::Ptr& request) {
 
     cv::Mat mat = cv::Mat(img_height, img_width, CV_8UC1);
 
-    short max = 0;
+    short max = outRaw[0];
+    short min = outRaw[0];
     for (int i = 0; i < img_width * img_height; i++)
     {
         if (outRaw[i] > max)
             max = outRaw[i];
+
+        if (outRaw[i] < min)
+            min = outRaw[i];
     }
-    if (max != 0) {
-        float scale = (float)255.0 / (float)max;
-        convertFp16ToU8(outRaw, (uint8_t *)mat.data, img_width * img_height, scale);
-    }
-    else
-        printf("error, max is zero\n");
+
+    getU8Depth(outRaw, (uint8_t *)mat.data, img_width * img_height, max, min);
 
     postprocessMetrics.update(postProcStart);
 
