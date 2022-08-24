@@ -1,6 +1,7 @@
-#include <FrameReaderNode.hpp>
-#include <MidasInferNode.hpp>
-#include <DisplayNode.hpp>
+#include <nodes/include/FrameReaderNode.hpp>
+#include <nodes/include/MidasInferNode.hpp>
+#include <nodes/include/DisplayNode.hpp>
+#include <nodes/include/OdInferNode.hpp>
 #include <Windows.h>
 #include <gflags/gflags.h>
 
@@ -114,6 +115,15 @@ int main(int argc, char* argv[]){
     MidasConfig.inferMode = FLAGS_api;
     auto& MidasNode = pl.addNode(std::make_shared<MidasInferNode>(1, 1, 1, MidasConfig), "MidasNode");
     MidasNode.configBatch(batchingConfig);
+
+    //Detection node
+    ODInferNode::Config ODConfig;
+    ODConfig.modelFileName = "C:/work/yolo-v2-tiny/FP16-INT8/yolo-v2-tiny-ava-0001.xml";
+    ODConfig.architectureType = "yolo";
+    ODConfig.nstreams = "1";
+    ODConfig.nireq = FLAGS_nireq;
+    auto& OdNode = pl.addNode(std::make_shared<ODInferNode>(1, 1, 1, ODConfig), "OdNode");
+    OdNode.configBatch(batchingConfig);
 
     //Sink node
     DisplayNode::Config DispConfig;

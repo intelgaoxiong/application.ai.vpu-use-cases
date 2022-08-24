@@ -242,22 +242,52 @@ void MidasInferNodeWorker::preprocess(const cv::Mat & img, IE::InferRequest::Ptr
     preprocessMetrics.update(preProcStart);
 }
 
-static void convertFp16ToU8(short * in, uint8_t * out, uint32_t width, float scale)
+static float cpu_half2float(unsigned short x)
+{
+    unsigned sign = ((x >> 15) & 1);
+    unsigned exponent = ((x >> 10) & 0x1f);
+    unsigned mantissa = ((x & 0x3ff) << 13);
+    if (exponent == 0x1f) {  /* NaN or Inf */
+        mantissa = (mantissa ? (sign = 0, 0x7fffff) : 0);
+        exponent = 0xff;
+    }
+    else if (!exponent) {  /* Denorm or Zero */
+        if (mantissa) {
+            unsigned int msb;
+            exponent = 0x71;
+            do {
+                msb = (mantissa & 0x400000);
+                mantissa <<= 1;  /* normalize */
+                --exponent;
+            } while (!msb);
+            mantissa &= 0x7fffff;  /* 1.mantissa is implicit */
+        }
+    }
+    else {
+        exponent += 0x70;
+    }
+    int temp = ((sign << 31) | (exponent << 23) | mantissa);
+
+    return *((float*)((void*)&temp));
+}
+
+static void convertFp16ToU8(unsigned short * in, uint8_t * out, uint32_t width, float scale)
 {
     int i;
 
     for (int i = 0; i < width; i++)
     {
-        if (in[i] < 0) {
-            out[i] = 0;
-        }
-        else {
-            out[i] = (uint8_t)(((float)in[i] * scale));
-        }
+        //if (in[i] < 0) {
+        //    out[i] = 0;
+        //}
+        //else {
+        //    out[i] = (uint8_t)(((float)in[i] * scale));
+        //}
+        out[i] = (uint8_t)((cpu_half2float(in[i]) * scale));
     }
 }
 
-static void getU8Depth(short * in, uint8_t * out, uint32_t width, short max, short min)
+static void getU8Depth(unsigned short * in, uint8_t * out, uint32_t width, unsigned short max, unsigned short min)
 {
     int i;
 
@@ -273,6 +303,11 @@ static void getU8Depth(short * in, uint8_t * out, uint32_t width, short max, sho
             else
                 out[i] = (uint8_t)value;
         }
+        //float value = (float)255 * ((float)(cpu_half2float(in[i]) - min) / (float)(max - min));
+        //if (value > 255)
+        //    out[i] = 255;
+        //else
+        //    out[i] = (uint8_t)value;
     }
 }
 
@@ -295,15 +330,15 @@ cv::Mat MidasInferNodeWorker::postprocess_fp16(IE::InferRequest::Ptr& request) {
     if (precision != IE::Precision::FP16)
         throw std::runtime_error("Error: expect FP16 output");
 
-    short *outRaw = ptrOutputBlob->buffer().as<short *>();
+    unsigned short *outRaw = ptrOutputBlob->buffer().as<unsigned short *>();
 
     int img_width =ptrOutputBlob->getTensorDesc().getDims()[2];
     int img_height = ptrOutputBlob->getTensorDesc().getDims()[1];
 
     cv::Mat mat = cv::Mat(img_height, img_width, CV_8UC1);
 
-    short max = outRaw[0];
-    short min = outRaw[0];
+    unsigned short max = outRaw[0];
+    unsigned short min = outRaw[0];
     for (int i = 0; i < img_width * img_height; i++)
     {
         if (outRaw[i] > max)

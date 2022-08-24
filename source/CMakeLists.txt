@@ -1,5 +1,5 @@
 add_subdirectory(common)
-add_subdirectory(dataPathTestWithMeta)
+#add_subdirectory(dataPathTestWithMeta)
 
 # add_demo(NAME <target name>
 #     SOURCES <source files>
@@ -46,5 +46,5 @@ macro(add_demo)
     endif()
 endmacro()
 
-add_subdirectory(object_detection_demo)
+# add_subdirectory(object_detection_demo)
 add_subdirectory(midas_demo)

@@ -8,5 +8,5 @@ file(GLOB H_FILES ./*.h)
 add_demo(NAME midas_demo
     SOURCES ${SRC_FILES}
     HEADERS ${H_FILES}
-    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/thirdparty/hvaframework
-    DEPENDENCIES monitors models pipelines ade hva)
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/thirdparty/hvaframework ${PROJECT_SOURCE_DIR}/source/common
+    DEPENDENCIES nodes monitors models pipelines ade hva)
