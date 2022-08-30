@@ -63,11 +63,15 @@ private:
     read_type m_rt;  //read_type::efficient or read_type::safe
 
     std::unique_ptr<ImagesCapture> m_cap;
+    std::unique_ptr<ImagesCapture> mep_cap;
 
     std::atomic_uint m_currDepth = 0;
     unsigned int m_maxDepth =16;
     double m_maxFPS = 0.0f;
     std::chrono::nanoseconds m_intervalNs;
     std::chrono::steady_clock::time_point m_lastSendTime;
+
+    std::shared_ptr<std::thread> m_mepThread;
+    std::atomic_bool m_exec {true};
 };
 #endif

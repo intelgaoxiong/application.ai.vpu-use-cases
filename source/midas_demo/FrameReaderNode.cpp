@@ -112,10 +112,29 @@ void FrameReaderNodeWorker::deinit(){
 
 void FrameReaderNodeWorker::processByFirstRun(std::size_t batchIdx) {
     m_cap = openImagesCapture(m_input, m_loop, m_rt);
+
+    m_mepThread = std::make_shared<std::thread> ([&]() {
+        high_resolution_sleep(std::chrono::nanoseconds(1000 * 1000 * 1000));
+        mep_cap = openImagesCapture("0", m_loop, m_rt);
+        while (m_exec) {
+            cv::Mat curr_mep_frame = mep_cap->read();
+            mep_cap->getMetrics().paintMetrics(curr_mep_frame,
+                    {10, 22},
+                    cv::FONT_HERSHEY_COMPLEX,
+                    0.65);
+            cv::imshow("MEP", curr_mep_frame);
+            cv::waitKey(1);
+        }
+    });
 }
 
 void FrameReaderNodeWorker::processByLastRun(std::size_t batchIdx) {
     auto readLat = m_cap->getMetrics().getTotal().latency;
     slog::info << "\tDecoding:\t" << std::fixed << std::setprecision(1) <<
         readLat << " ms" << slog::endl;
+
+    if (m_mepThread && m_mepThread->joinable()) {
+        m_exec = false;
+        m_mepThread->join();
+    }
 }
