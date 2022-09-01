@@ -132,6 +132,28 @@ MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const Mid
         throw std::runtime_error("Could not open file");
     }
     std::istream graphBlob(&blobFile);
+
+    std::string priValue;
+    if(config.priority == "HIGH") {
+        priValue = CONFIG_VALUE(MODEL_PRIORITY_HIGH);
+    }
+    else if (config.priority == "MEDIUM") {
+        priValue = CONFIG_VALUE(MODEL_PRIORITY_MED);
+    }
+    else if (config.priority == "LOW") {
+        priValue = CONFIG_VALUE(MODEL_PRIORITY_LOW);
+    } else {
+        slog::info << "Unknown model priority configuration, will use MODEL_PRIORITY_MED" <<slog::endl;
+        priValue = CONFIG_VALUE(MODEL_PRIORITY_MED);
+    }
+
+    slog::info << "Model priority " << priValue <<slog::endl;
+
+    std::map<std::string, std::string> iecfg;
+    iecfg[CONFIG_KEY(MODEL_PRIORITY)] = priValue;
+
+    m_ie.SetConfig(iecfg, "VPUX");
+
     m_executableNetwork = m_ie.ImportNetwork(graphBlob, config.targetDevice, {});
 
     // ---- Create infer request

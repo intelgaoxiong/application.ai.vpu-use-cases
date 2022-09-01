@@ -23,10 +23,12 @@ static const char model_message[] = "Required. Path to a blob file.";
 static const char nireq_message[] = "Optional. Number of infer requests. If this option is omitted, number of infer "
                                     "requests is determined automatically.";
 static const char api_message[] = "Optional. Infer mode: async or sync. Async is by default.";
+static const char priority_message[] = "Optional. Model priority: HIGH, MEDIUM or LOW. MEDIUM is by default.";
 
 DEFINE_string(m, "", model_message);
 DEFINE_uint32(nireq, 4, nireq_message);
 DEFINE_string(api, "async", api_message);
+DEFINE_string(priority, "MEDIUM", priority_message);
 
 //Display Node config
 static const char res_message[] = "Optional. Display resolution: (width_value)x(height_value).";
@@ -46,6 +48,7 @@ static void showUsage() {
     std::cout << "    -m \"<path>\"               " << model_message << std::endl;
     std::cout << "    -nireq \"<integer>\"        " << nireq_message << std::endl;
     std::cout << "    -api                     " << api_message << std::endl;
+    std::cout << "    -priority                     " << priority_message << std::endl;
 
     std::cout << "    -displayRes                     " << res_message << std::endl;
 }
@@ -112,6 +115,7 @@ int main(int argc, char* argv[]){
     MidasConfig.modelFileName = FLAGS_m;
     MidasConfig.nireq = FLAGS_nireq;
     MidasConfig.inferMode = FLAGS_api;
+    MidasConfig.priority = FLAGS_priority;
     auto& MidasNode = pl.addNode(std::make_shared<MidasInferNode>(1, 1, 1, MidasConfig), "MidasNode");
     MidasNode.configBatch(batchingConfig);
 

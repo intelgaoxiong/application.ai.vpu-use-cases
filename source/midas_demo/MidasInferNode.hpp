@@ -55,6 +55,8 @@ public:
         uint32_t nthreads = 0;  //Optional. Number of threads.
         std::string nstreams = "";  //Optional. Number of streams to use for inference on the CPU or/and GPU in throughput mode (for HETERO and MULTI device cases use format <device1>:<nstreams1>,<device2>:<nstreams2> or just <nstreams>).
 
+        std::string priority = "MEDIUM"; //Optional. HIGH / MEDIUM / LOW
+
         bool reverse_input_channels = false;
         std::string mean_values = "";
         std::string scale_values = "";
