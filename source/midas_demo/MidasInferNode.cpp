@@ -295,25 +295,14 @@ cv::Mat MidasInferNodeWorker::postprocess_fp16(IE::InferRequest::Ptr& request) {
     if (precision != IE::Precision::FP16)
         throw std::runtime_error("Error: expect FP16 output");
 
-    short *outRaw = ptrOutputBlob->buffer().as<short *>();
+    //short *outRaw = ptrOutputBlob->buffer().as<short *>();
 
     int img_width =ptrOutputBlob->getTensorDesc().getDims()[2];
     int img_height = ptrOutputBlob->getTensorDesc().getDims()[1];
 
     cv::Mat mat = cv::Mat(img_height, img_width, CV_8UC1);
-
-    short max = outRaw[0];
-    short min = outRaw[0];
-    for (int i = 0; i < img_width * img_height; i++)
-    {
-        if (outRaw[i] > max)
-            max = outRaw[i];
-
-        if (outRaw[i] < min)
-            min = outRaw[i];
-    }
-
-    getU8Depth(outRaw, (uint8_t *)mat.data, img_width * img_height, max, min);
+    cv::Mat outMat(img_height, img_width, CV_16SC1, ptrOutputBlob->buffer().as<short*>());
+    cv::normalize(outMat, mat, 0, 255, cv::NORM_MINMAX, CV_8UC1);
 
     postprocessMetrics.update(postProcStart);
 
