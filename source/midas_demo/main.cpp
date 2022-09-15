@@ -1,6 +1,7 @@
 #include <FrameReaderNode.hpp>
 #include <MidasInferNode.hpp>
 #include <DisplayNode.hpp>
+#include <Vis3DNode.hpp>
 #include <Windows.h>
 #include <gflags/gflags.h>
 
@@ -112,7 +113,7 @@ int main(int argc, char* argv[]){
     MidasConfig.modelFileName = FLAGS_m;
     MidasConfig.nireq = FLAGS_nireq;
     MidasConfig.inferMode = FLAGS_api;
-    auto& MidasNode = pl.addNode(std::make_shared<MidasInferNode>(1, 1, 1, MidasConfig), "MidasNode");
+    auto& MidasNode = pl.addNode(std::make_shared<MidasInferNode>(1, 2, 1, MidasConfig), "MidasNode");
     MidasNode.configBatch(batchingConfig);
 
     //Sink node
@@ -121,9 +122,16 @@ int main(int argc, char* argv[]){
     auto& DispNode = pl.addNode(std::make_shared<DisplayNode>(1, 0, 1, DispConfig), "DispNode");
     DispNode.configBatch(batchingConfig);
 
+    //Sink node
+    Vis3DNode::Config Vis3DConfig;
+    Vis3DConfig.dispRes = FLAGS_displayRes;
+    auto& VisNode = pl.addNode(std::make_shared<Vis3DNode>(1, 0, 1, Vis3DConfig), "VisNode");
+    VisNode.configBatch(batchingConfig);
+
     // Link nodes
     pl.linkNode("FRNode", 0, "MidasNode", 0);
     pl.linkNode("MidasNode", 0, "DispNode", 0);
+    pl.linkNode("MidasNode", 1, "VisNode", 0);
 
     // Start pipeline
     pl.prepare();

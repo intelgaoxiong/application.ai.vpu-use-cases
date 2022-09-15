@@ -9,17 +9,17 @@
 
 #define SET_BLOB 0  //Disable SetBlob method, not stable currently.
 
-MidasInferNode::MidasInferNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config):
-        hva::hvaNode_t(inPortNum, outPortNum, totalThreadNum), m_cfg(config){
+MidasInferNode::MidasInferNode(std::size_t inPortNum, std::size_t outPortNum, std::size_t totalThreadNum, const Config& config) :
+    hva::hvaNode_t(inPortNum, outPortNum, totalThreadNum), m_cfg(config) {
 
 }
 
-std::shared_ptr<hva::hvaNodeWorker_t> MidasInferNode::createNodeWorker() const{
+std::shared_ptr<hva::hvaNodeWorker_t> MidasInferNode::createNodeWorker() const {
     return std::shared_ptr<hva::hvaNodeWorker_t>(new MidasInferNodeWorker((MidasInferNode*)this, m_cfg));
 }
 
-InferRequestPool_t::InferRequestPool_t(IE::ExecutableNetwork &executableNetwork, int32_t numInferRequest)
-    : _cntInferRequest{numInferRequest}, _maxSize{static_cast<size_t>(numInferRequest)}
+InferRequestPool_t::InferRequestPool_t(IE::ExecutableNetwork& executableNetwork, int32_t numInferRequest)
+    : _cntInferRequest{ numInferRequest }, _maxSize{ static_cast<size_t>(numInferRequest) }
 {
     for (int32_t i = 0; i < numInferRequest; i++)
     {
@@ -28,12 +28,12 @@ InferRequestPool_t::InferRequestPool_t(IE::ExecutableNetwork &executableNetwork,
         {
             ptrInferRequest = executableNetwork.CreateInferRequestPtr();
         }
-        catch(const std::exception& e)
+        catch (const std::exception& e)
         {
             std::cerr << e.what() << std::endl;
             continue;
         }
-        catch(...)
+        catch (...)
         {
             continue;
         }
@@ -87,7 +87,7 @@ bool InferRequestPool_t::push(InferRequestPool_t::Type value)
     return true;
 }
 
-bool InferRequestPool_t::pop(InferRequestPool_t::Type &value)
+bool InferRequestPool_t::pop(InferRequestPool_t::Type& value)
 {
     std::unique_lock<std::mutex> lk(_mutex);
     _cv_empty.wait(lk, [this] { return (!_queue.empty() || true == _close); });
@@ -116,7 +116,7 @@ void InferRequestPool_t::close()
     return;
 }
 
-MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const MidasInferNode::Config& config):hva::hvaNodeWorker_t(parentNode){
+MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const MidasInferNode::Config& config) :hva::hvaNodeWorker_t(parentNode) {
     slog::info << ov::get_openvino_version() << slog::endl;
 
     if (config.targetDevice != "VPUX") {
@@ -142,12 +142,13 @@ MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const Mid
     if (inputsInfo.empty())
     {
         throw std::runtime_error("input info empty");
-    } else if (inputsInfo.size() > 1) {
+    }
+    else if (inputsInfo.size() > 1) {
         throw std::runtime_error("Only support 1 input model for now");
     }
 
     m_inputName = inputsInfo.begin()->first;
-    slog::info << "Midas NN input name: " << m_inputName <<slog::endl;
+    slog::info << "Midas NN input name: " << m_inputName << slog::endl;
 
     auto inputInfo = inputsInfo.begin()->second;
     auto inputTensorDesc = inputInfo->getTensorDesc();
@@ -157,11 +158,12 @@ MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const Mid
         nn_width = inputTensorDesc.getDims()[3];
         nn_height = inputTensorDesc.getDims()[2];
         nn_channel = inputTensorDesc.getDims()[1];
-    } else {
+    }
+    else {
         throw std::runtime_error("Only support Layout::NCHW input for now");
     }
 
-    slog::info << "Midas NN input shape: " << nn_width << "x" << nn_height <<slog::endl;
+    slog::info << "Midas NN input shape: " << nn_width << "x" << nn_height << slog::endl;
 
     if (config.inferMode != "async")
         async_infer = 0;
@@ -169,12 +171,12 @@ MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const Mid
         async_infer = 1;
 
     if (async_infer)
-        slog::info << "Midas NN inference in async mode" <<slog::endl;
+        slog::info << "Midas NN inference in async mode" << slog::endl;
     else
-        slog::info << "Midas NN inference in sync mode" <<slog::endl;
+        slog::info << "Midas NN inference in sync mode" << slog::endl;
 }
 
-IE::InferRequest::Ptr MidasInferNodeWorker::getInferRequest(){
+IE::InferRequest::Ptr MidasInferNodeWorker::getInferRequest() {
     return m_ptrInferRequestPool->get();
 }
 
@@ -199,24 +201,24 @@ static UNUSED InferenceEngine::Blob::Ptr wrapMat2Blob(const cv::Mat& mat) {
         IE_THROW() << "Doesn't support conversion from not dense cv::Mat";
 
     InferenceEngine::TensorDesc tDesc(InferenceEngine::Precision::U8,
-                                      {1, channels, height, width},
-                                      InferenceEngine::Layout::NHWC);
+        { 1, channels, height, width },
+        InferenceEngine::Layout::NHWC);
 
     return InferenceEngine::make_shared_blob<uint8_t>(tDesc, mat.data);
 }
 
 //interleved -> plannar (HWC -> CHW)
-static void convertHWC2CHW(uint8_t * chw_dst, uint8_t * hwc_src, uint32_t width, uint32_t height, uint32_t channel) {
-    for (int c = 0; c < channel; c ++) {
-        for (int h =0; h < height; h ++) {
-            for (int w = 0; w < width; w ++) {
-                chw_dst[w + h * width + c * height * width]  = hwc_src[channel * (w + h * width) + c];
+static void convertHWC2CHW(uint8_t* chw_dst, uint8_t* hwc_src, uint32_t width, uint32_t height, uint32_t channel) {
+    for (int c = 0; c < channel; c++) {
+        for (int h = 0; h < height; h++) {
+            for (int w = 0; w < width; w++) {
+                chw_dst[w + h * width + c * height * width] = hwc_src[channel * (w + h * width) + c];
             }
         }
     }
 }
 
-void MidasInferNodeWorker::preprocess(const cv::Mat & img, IE::InferRequest::Ptr& request) {
+void MidasInferNodeWorker::preprocess(const cv::Mat& img, IE::InferRequest::Ptr& request) {
     auto preProcStart = std::chrono::steady_clock::now();
     const auto& resizedImg = resizeImageExt(img, nn_width, nn_height);
     //cv::imshow("resizedImg", resizedImg);
@@ -229,8 +231,8 @@ void MidasInferNodeWorker::preprocess(const cv::Mat & img, IE::InferRequest::Ptr
     IE::MemoryBlob::Ptr minput = IE::as<IE::MemoryBlob>(inputBlob);
     if (!minput) {
         IE_THROW() << "We expect inputBlob to be inherited from MemoryBlob in "
-                      "fillBlobImage, "
-                   << "but by fact we were not able to cast inputBlob to MemoryBlob";
+            "fillBlobImage, "
+            << "but by fact we were not able to cast inputBlob to MemoryBlob";
     }
     // locked memory holder should be alive all time while access to its buffer
     // happens
@@ -242,7 +244,7 @@ void MidasInferNodeWorker::preprocess(const cv::Mat & img, IE::InferRequest::Ptr
     preprocessMetrics.update(preProcStart);
 }
 
-static void convertFp16ToU8(short * in, uint8_t * out, uint32_t width, float scale)
+static void convertFp16ToU8(short* in, uint8_t* out, uint32_t width, float scale)
 {
     int i;
 
@@ -257,7 +259,7 @@ static void convertFp16ToU8(short * in, uint8_t * out, uint32_t width, float sca
     }
 }
 
-static void getU8Depth(short * in, uint8_t * out, uint32_t width, short max, short min)
+static void getU8Depth(short* in, uint8_t* out, uint32_t width, short max, short min)
 {
     int i;
 
@@ -295,33 +297,36 @@ cv::Mat MidasInferNodeWorker::postprocess_fp16(IE::InferRequest::Ptr& request) {
     if (precision != IE::Precision::FP16)
         throw std::runtime_error("Error: expect FP16 output");
 
-    short *outRaw = ptrOutputBlob->buffer().as<short *>();
+    short* outRaw = ptrOutputBlob->buffer().as<short*>();
 
-    int img_width =ptrOutputBlob->getTensorDesc().getDims()[2];
+    int img_width = ptrOutputBlob->getTensorDesc().getDims()[2];
     int img_height = ptrOutputBlob->getTensorDesc().getDims()[1];
 
-    cv::Mat mat = cv::Mat(img_height, img_width, CV_8UC1);
+    //cv::Mat mat = cv::Mat(img_height, img_width, CV_8UC1);
+    //cv::Mat matF = cv::Mat(img_height, img_width, CV_32FC1);
+    cv::Mat outMat(img_height, img_width, CV_16U, outRaw);
+    //short max = outRaw[0];
+    //short min = outRaw[0];
+    //for (int i = 0; i < img_width * img_height; i++)
+    //{
+    //    if (outRaw[i] > max)
+    //        max = outRaw[i];
+    //
+    //    if (outRaw[i] < min)
+    //        min = outRaw[i];
+    //}
 
-    short max = outRaw[0];
-    short min = outRaw[0];
-    for (int i = 0; i < img_width * img_height; i++)
-    {
-        if (outRaw[i] > max)
-            max = outRaw[i];
-
-        if (outRaw[i] < min)
-            min = outRaw[i];
-    }
-
-    getU8Depth(outRaw, (uint8_t *)mat.data, img_width * img_height, max, min);
+    //getU8Depth(outRaw, (uint8_t *)mat.data, img_width * img_height, max, min);
+    //cv::normalize(outMat, mat, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+    //cv::normalize(outMat, matF, 0, 1, cv::NORM_MINMAX, CV_32FC1);
 
     postprocessMetrics.update(postProcStart);
 
-    return mat;
+    return outMat;
 
 }
 
-void MidasInferNodeWorker::putInferRequest(IE::InferRequest::Ptr ptrInferRequest){
+void MidasInferNodeWorker::putInferRequest(IE::InferRequest::Ptr ptrInferRequest) {
     ptrInferRequest->SetCompletionCallback([] {});
     m_ptrInferRequestPool->put(ptrInferRequest);
     return;
@@ -363,7 +368,7 @@ AsyncTaskInProcess::Ptr MidasInferNodeWorker::makeAsyncTask(IE::InferRequest::Pt
     return asyncTaskPtr;
 }
 
-void MidasInferNodeWorker::process(std::size_t batchIdx){
+void MidasInferNodeWorker::process(std::size_t batchIdx) {
     auto vecBlobInput = hvaNodeWorker_t::getParentPtr()->getBatchedInput(batchIdx, std::vector<size_t>{0});
     if (vecBlobInput.size() != 0)
     {
@@ -371,8 +376,8 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
 
         if ((vecBlobInput[0]->frameId % 100) == 0) {
             logLatencyPerStage(preprocessMetrics.getLast().latency,
-                           inferenceMetrics.getLast().latency,
-                           postprocessMetrics.getLast().latency);
+                inferenceMetrics.getLast().latency,
+                postprocessMetrics.getLast().latency);
         }
 
         auto cvFrame = vecBlobInput[0]->get<int, ImageMetaData>(0)->getMeta()->img;
@@ -390,7 +395,8 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
 
             auto taskPtr = makeAsyncTask(ptrInferRequest, vecBlobInput[0], asyncInferStart);
             enqueueAsyncTask(taskPtr);
-        } else {
+        }
+        else {
             //infernece sync
             auto inferSyncStart = std::chrono::steady_clock::now();
             ptrInferRequest->Infer();
@@ -400,32 +406,32 @@ void MidasInferNodeWorker::process(std::size_t batchIdx){
             putInferRequest(ptrInferRequest);
 
             std::shared_ptr<hva::hvaBlob_t> blob(new hva::hvaBlob_t());
-            InferMeta *ptrInferMeta = new InferMeta;
+            InferMeta* ptrInferMeta = new InferMeta;
             ptrInferMeta->depthMat = depthMat;
             ptrInferMeta->frameId = vecBlobInput[0]->frameId;
             ptrInferMeta->timeStamp = inferSyncStart;
-            blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
-                        if (payload!=nullptr) {
-                            delete payload;
-                        }
-                        delete meta;
-                    });
+            blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int* payload, InferMeta* meta) {
+                if (payload != nullptr) {
+                    delete payload;
+                }
+                delete meta;
+                });
             blob->push(vecBlobInput[0]->get<int, ImageMetaData>(0));
             blob->frameId = vecBlobInput[0]->frameId;
             blob->streamId = vecBlobInput[0]->streamId;
 
-            //cv::imshow("Video", cvFrame);
-            //cv::imshow("Depth", depthMat);
-            //cv::waitKey(1);
+            cv::Mat mask_map = depthMat > 0.4;
+            depthMat.setTo(0, mask_map);
+
             sendOutput(blob, 0, ms(0));
         }
     }
 }
 
-void MidasInferNodeWorker::init(){
+void MidasInferNodeWorker::init() {
 }
 
-void MidasInferNodeWorker::deinit(){
+void MidasInferNodeWorker::deinit() {
 }
 
 void MidasInferNodeWorker::logLatencyPerStage(double preprocLat, double inferLat, double postprocLat) {
@@ -436,7 +442,7 @@ void MidasInferNodeWorker::logLatencyPerStage(double preprocLat, double inferLat
 }
 
 void MidasInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
-    m_resultThread = std::make_shared<std::thread> ([&]() {
+    m_resultThread = std::make_shared<std::thread>([&]() {
         while (m_exec) {
 
             auto task = dequeueAsyncTask();
@@ -455,16 +461,18 @@ void MidasInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
 
             putInferRequest(ptrPendingReq);
             std::shared_ptr<hva::hvaBlob_t> blob(new hva::hvaBlob_t());
-            InferMeta *ptrInferMeta = new InferMeta;
+            cv::normalize(depthMat, depthMat, 0, 255, cv::NORM_MINMAX);
+            depthMat.convertTo(depthMat, CV_8UC1);
+            InferMeta* ptrInferMeta = new InferMeta;
             ptrInferMeta->depthMat = depthMat;
             ptrInferMeta->frameId = pendingBlob->frameId;
             ptrInferMeta->timeStamp = task->m_asyncStartTime;
-            blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int *payload, InferMeta * meta) {
-                        if (payload!=nullptr) {
-                            delete payload;
-                        }
-                        delete meta;
-                    });
+            blob->emplace<int, InferMeta>(nullptr, 0, ptrInferMeta, [](int* payload, InferMeta* meta) {
+                if (payload != nullptr) {
+                    delete payload;
+                }
+                delete meta;
+                });
             blob->push(pendingBlob->get<int, ImageMetaData>(0));
             blob->frameId = pendingBlob->frameId;
             blob->streamId = pendingBlob->streamId;
@@ -474,6 +482,7 @@ void MidasInferNodeWorker::processByFirstRun(std::size_t batchIdx) {
             //cv::waitKey(1);
 
             sendOutput(blob, 0, ms(0));
+            sendOutput(blob, 1, ms(0));
         }
     });
 }

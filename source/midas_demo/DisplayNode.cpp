@@ -62,8 +62,18 @@ void DisplayNodeWorker::process(std::size_t batchIdx){
 #endif
 #if 1
             auto ptrInferMeta = vInput[0]->get<int, InferMeta>(0)->getMeta();
-            cv::Mat depthFrame = ptrInferMeta->depthMat;
-            cv::imshow("Depth", depthFrame);
+
+            cv::Mat depthFrame;
+            depthFrame = ptrInferMeta->depthMat;
+            //cv::resize(depthFrame, depthFrame, cv::Size(frameResolution.width, frameResolution.height), 0, 0, cv::INTER_CUBIC);
+            //depthFrame = depthFrame * 255;
+            cv::Mat colorDepth;
+            cv::applyColorMap(depthFrame, colorDepth, cv::COLORMAP_MAGMA);
+            cv::imshow("Color Depth", colorDepth);
+
+            //cv::reprojectImageTo3D(depthFrame, points_3D, Q, false);
+            //cv::imshow("Reproject", points_3D);
+            //cv::imwrite("./depth.png", depthFrame);
 #endif
             cv::imshow("Video", cvFrame);
             cv::waitKey(1);

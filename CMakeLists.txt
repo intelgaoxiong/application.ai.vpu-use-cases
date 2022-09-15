@@ -15,6 +15,7 @@ endif()
 
 find_package(OpenCV REQUIRED COMPONENTS core highgui videoio imgproc imgcodecs gapi)
 find_package(OpenVINO REQUIRED COMPONENTS Runtime)
+find_package(Open3D REQUIRED)
 
 add_subdirectory(thirdparty/gflags)
 
@@ -24,5 +25,9 @@ include_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/hvaframework/include/hva/inc/util"
   "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/hvaframework/include/ade"
   )
+include_directories("${Open3D_ROOT}/include" "${Open3D_ROOT}/include/open3d/3rdparty")
+
+link_directories("${Open3D_ROOT}/bin")
+link_libraries(Open3D::Open3D)
 
 add_subdirectory(source)
