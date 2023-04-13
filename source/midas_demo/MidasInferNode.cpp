@@ -175,7 +175,7 @@ MidasInferNodeWorker::MidasInferNodeWorker(hva::hvaNode_t* parentNode, const Mid
     auto inputTensorDesc = inputInfo->getTensorDesc();
     auto inputLayout = inputTensorDesc.getLayout();
 
-    if (inputLayout == IE::Layout::NCHW) {
+    if (inputLayout == IE::Layout::NHWC) {
         nn_width = inputTensorDesc.getDims()[3];
         nn_height = inputTensorDesc.getDims()[2];
         nn_channel = inputTensorDesc.getDims()[1];
@@ -259,7 +259,7 @@ void MidasInferNodeWorker::preprocess(const cv::Mat & img, IE::InferRequest::Ptr
     auto minputHolder = minput->wmap();
     auto inputBlobData = minputHolder.as<uint8_t*>();
 
-    convertHWC2CHW(inputBlobData, resizedImg.data, nn_width, nn_height, nn_channel);
+    memcpy(inputBlobData, resizedImg.data, (nn_width * nn_height * nn_channel));
 #endif
     preprocessMetrics.update(preProcStart);
 }
